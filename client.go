@@ -134,6 +134,10 @@ type Client struct {
 	// Conversions provides methods for converting between settlement
 	// currencies: quoting, executing, and reading conversions.
 	Conversions *ConversionService
+
+	// Organizations provides methods for reading your own organization and
+	// managing its checkout configuration.
+	Organizations *OrganizationService
 }
 
 // NewClient returns a Bachs API client authenticated with apiKey.
@@ -173,6 +177,7 @@ func NewClient(apiKey string, opts ...Option) (*Client, error) {
 	c.Payouts = &PayoutService{service{request: c.do}}
 	c.Disputes = &DisputeService{service{request: c.do}}
 	c.Conversions = &ConversionService{service{request: c.do}}
+	c.Organizations = &OrganizationService{service{request: c.do}}
 
 	return c, nil
 }

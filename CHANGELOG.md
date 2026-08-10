@@ -4,7 +4,10 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [v1.1.0] - 2026-08-11
+
+Adds the resource groups that were out of scope for v1.0: payouts, disputes,
+conversions, organizations, and the webhook management API.
 
 ### Added
 
@@ -22,6 +25,9 @@ this project adheres to [Semantic Versioning](https://semver.org/).
   listing with payloads and attempt history, resending a delivery, and
   replaying an event. Event types are exposed as typed `EventType*`
   constants.
+- **Offline API reference** — `scripts/gen-docs.sh` renders the module's doc
+  comments into a static pkg.go.dev-style site in `docs/`, served locally
+  with `scripts/serve-docs.sh`.
 
 ### Changed
 

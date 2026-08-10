@@ -122,6 +122,10 @@ type Client struct {
 	// and reading connected accounts, requesting capabilities, walking their
 	// onboarding Tasks, and managing account documents.
 	ConnectedAccounts *ConnectedAccountService
+
+	// Payouts provides methods for withdrawing funds to bank accounts,
+	// mobile money, or crypto wallets: destinations, quotes, and withdrawals.
+	Payouts *PayoutService
 }
 
 // NewClient returns a Bachs API client authenticated with apiKey.
@@ -158,6 +162,7 @@ func NewClient(apiKey string, opts ...Option) (*Client, error) {
 	c.Media = &MediaService{service{request: c.do}}
 	c.CustomerSessions = &CustomerSessionService{service{request: c.do}}
 	c.ConnectedAccounts = &ConnectedAccountService{service{request: c.do}}
+	c.Payouts = &PayoutService{service{request: c.do}}
 
 	return c, nil
 }

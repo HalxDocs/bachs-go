@@ -82,6 +82,30 @@ type ListParams struct {
 	// ConnectedAccountID returns only resources involving this connected
 	// account. Used by Transfers.List.
 	ConnectedAccountID string
+
+	// FromDate filters to records created on or after this date. Used by
+	// Disputes.List, which sends it as the from_date query parameter.
+	FromDate string
+
+	// ToDate filters to records created on or before this date. Used by
+	// Disputes.List, which sends it as the to_date query parameter.
+	ToDate string
+
+	// StartDate filters to records created on or after this date. Used by
+	// Conversions.List, which sends it as the start_date query parameter.
+	StartDate string
+
+	// EndDate filters to records created on or before this date. Used by
+	// Conversions.List, which sends it as the end_date query parameter.
+	EndDate string
+
+	// FromCurrency filters by the source currency. Used by Conversions.List,
+	// which sends it as the from_currency query parameter.
+	FromCurrency string
+
+	// ToCurrency filters by the destination currency. Used by
+	// Conversions.List, which sends it as the to_currency query parameter.
+	ToCurrency string
 }
 
 // queryValues renders the params as URL query values. Fields that are unset
@@ -113,6 +137,24 @@ func (p ListParams) queryValues() url.Values {
 	}
 	if p.ConnectedAccountID != "" {
 		v.Set("connected_account_id", p.ConnectedAccountID)
+	}
+	if p.FromDate != "" {
+		v.Set("from_date", p.FromDate)
+	}
+	if p.ToDate != "" {
+		v.Set("to_date", p.ToDate)
+	}
+	if p.StartDate != "" {
+		v.Set("start_date", p.StartDate)
+	}
+	if p.EndDate != "" {
+		v.Set("end_date", p.EndDate)
+	}
+	if p.FromCurrency != "" {
+		v.Set("from_currency", p.FromCurrency)
+	}
+	if p.ToCurrency != "" {
+		v.Set("to_currency", p.ToCurrency)
 	}
 	return v
 }

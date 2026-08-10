@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **Contribution scaffolding** — rewritten README with badges, install
+  instructions, and a per-resource tour; `CONTRIBUTING.md` documenting the
+  design constraints and test expectations; `SECURITY.md`; `CODE_OF_CONDUCT.md`;
+  MIT `LICENSE`; and a CI workflow running build, vet, staticcheck, gofmt,
+  and tests across Go 1.21–1.24.
+
 ## [v1.1.0] - 2026-08-11
 
 Adds the resource groups that were out of scope for v1.0: payouts, disputes,

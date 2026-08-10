@@ -20,6 +20,10 @@ var errIdempotencyNonPost = errors.New("bachs: idempotency keys are only support
 type requestConfig struct {
 	// idempotencyKey, when set, is sent as the Idempotency-Key header.
 	idempotencyKey string
+
+	// connectedAccountID, when set, is sent as the X-Connected-Account-ID
+	// header so the request is performed on a connected account's behalf.
+	connectedAccountID string
 }
 
 // RequestOption configures a single API request.
@@ -35,6 +39,16 @@ type RequestOption func(*requestConfig)
 func WithIdempotencyKey(key string) RequestOption {
 	return func(cfg *requestConfig) {
 		cfg.idempotencyKey = key
+	}
+}
+
+// WithConnectedAccount sets the X-Connected-Account-ID header, so the request
+// is performed on behalf of the given connected account rather than the
+// platform itself. Used by Connect integrations when acting as a connected
+// account (for example creating a transfer that debits its balance).
+func WithConnectedAccount(connectedAccountID string) RequestOption {
+	return func(cfg *requestConfig) {
+		cfg.connectedAccountID = connectedAccountID
 	}
 }
 
@@ -121,6 +135,10 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any,
 			return nil, fmt.Errorf("%w (got %s)", errIdempotencyNonPost, method)
 		}
 		req.Header.Set(headerIdempotencyKey, cfg.idempotencyKey)
+	}
+
+	if cfg.connectedAccountID != "" {
+		req.Header.Set(headerConnectedAccountID, cfg.connectedAccountID)
 	}
 
 	resp, err := c.httpClient.Do(req)

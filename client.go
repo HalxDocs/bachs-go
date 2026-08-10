@@ -65,6 +65,7 @@ const (
 	headerContentType        = "Content-Type"
 	headerAccept             = "Accept"
 	headerIdempotencyKey     = "Idempotency-Key"
+	headerConnectedAccountID = "X-Connected-Account-ID"
 	headerRequestID          = "x-request-id"
 	headerRateLimitLimit     = "X-RateLimit-Limit"
 	headerRateLimitRemaining = "X-RateLimit-Remaining"
@@ -92,6 +93,22 @@ type Client struct {
 
 	// Payments provides methods for retrieving payments.
 	Payments *PaymentService
+
+	// Refunds provides methods for creating and retrieving refunds.
+	Refunds *RefundService
+
+	// Subscriptions provides methods for managing subscriptions. There is no
+	// Subscriptions.Create: subscriptions are created only when a customer
+	// completes a checkout for a recurring product.
+	Subscriptions *SubscriptionService
+
+	// Transfers provides methods for moving funds between your platform
+	// balance and the connected accounts you own.
+	Transfers *TransferService
+
+	// Misc provides account-wide endpoints: balances, payment methods,
+	// payment rails, and supported currencies.
+	Misc *MiscService
 }
 
 // NewClient returns a Bachs API client authenticated with apiKey.
@@ -121,6 +138,10 @@ func NewClient(apiKey string, opts ...Option) (*Client, error) {
 	c.Products = &ProductService{service{request: c.do}}
 	c.Customers = &CustomerService{service{request: c.do}}
 	c.Payments = &PaymentService{service{request: c.do}}
+	c.Refunds = &RefundService{service{request: c.do}}
+	c.Subscriptions = &SubscriptionService{service{request: c.do}}
+	c.Transfers = &TransferService{service{request: c.do}}
+	c.Misc = &MiscService{service{request: c.do}}
 
 	return c, nil
 }

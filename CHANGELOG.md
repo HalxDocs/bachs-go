@@ -10,9 +10,10 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 - **Contribution scaffolding** — rewritten README with badges, install
   instructions, and a per-resource tour; `CONTRIBUTING.md` documenting the
-  design constraints and test expectations; `SECURITY.md`; `CODE_OF_CONDUCT.md`;
-  MIT `LICENSE`; and a CI workflow running build, vet, staticcheck, gofmt,
-  and tests across Go 1.21–1.24.
+  design  constraints and test expectations; `SECURITY.md`; `CODE_OF_CONDUCT.md`;
+  an Apache-2.0 `LICENSE` (with its explicit patent grant); and a CI
+  workflow running build, vet, staticcheck, gofmt, and tests across Go
+  1.21–1.24.
 
 ## [v1.1.0] - 2026-08-11
 

@@ -1,7 +1,7 @@
 # bachs-go
 
 [![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go&logoColor=white)](https://go.dev)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 [![CI](https://github.com/HalxDocs/bachs-go/actions/workflows/ci.yml/badge.svg)](https://github.com/HalxDocs/bachs-go/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/HalxDocs/bachs-go?sort=semver)](https://github.com/HalxDocs/bachs-go/releases)
 
@@ -405,4 +405,4 @@ via [SECURITY.md](SECURITY.md), never as a public issue.
 
 ## License
 
-[MIT](LICENSE) © 2026 HalxDocs
+[Apache-2.0](LICENSE) © 2026 HalxDocs

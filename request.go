@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"strconv"
 	"time"
@@ -24,6 +26,13 @@ type requestConfig struct {
 	// connectedAccountID, when set, is sent as the X-Connected-Account-ID
 	// header so the request is performed on a connected account's behalf.
 	connectedAccountID string
+
+	// rawBody, when set, replaces the JSON-encoded body. Used by multipart
+	// uploads, which cannot be represented as JSON.
+	rawBody []byte
+
+	// contentType overrides the default application/json, for multipart bodies.
+	contentType string
 }
 
 // RequestOption configures a single API request.
@@ -52,6 +61,15 @@ func WithConnectedAccount(connectedAccountID string) RequestOption {
 	}
 }
 
+// withRawBody replaces the request body with pre-encoded bytes and sets the
+// Content-Type header. Used internally for multipart uploads.
+func withRawBody(body []byte, contentType string) RequestOption {
+	return func(cfg *requestConfig) {
+		cfg.rawBody = body
+		cfg.contentType = contentType
+	}
+}
+
 // requestFunc is the client's internal request method, injected into each
 // service. Services hold this function rather than the *Client, so they can
 // issue API calls without exposing the client's internals.
@@ -61,6 +79,35 @@ type requestFunc func(ctx context.Context, method, path string, body any, out an
 // function — never the *Client.
 type service struct {
 	request requestFunc
+}
+
+// multipartUpload builds a multipart/form-data body with one "file" part (the
+// file named fileName) plus any non-empty text fields, returning the encoded
+// body and its Content-Type (including the boundary).
+func multipartUpload(fileName string, file io.Reader, fields map[string]string) ([]byte, string, error) {
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+
+	for k, v := range fields {
+		if v != "" {
+			if err := mw.WriteField(k, v); err != nil {
+				return nil, "", fmt.Errorf("bachs: write multipart field %s: %w", k, err)
+			}
+		}
+	}
+
+	fw, err := mw.CreateFormFile("file", fileName)
+	if err != nil {
+		return nil, "", fmt.Errorf("bachs: create multipart file part: %w", err)
+	}
+	if _, err := io.Copy(fw, file); err != nil {
+		return nil, "", fmt.Errorf("bachs: copy upload file: %w", err)
+	}
+	if err := mw.Close(); err != nil {
+		return nil, "", fmt.Errorf("bachs: close multipart body: %w", err)
+	}
+
+	return buf.Bytes(), mw.FormDataContentType(), nil
 }
 
 // ResponseMeta holds per-response metadata Bachs sends in headers: the request
@@ -116,7 +163,12 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any,
 		}
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, url, bytes.NewReader(bodyBytes))
+	requestBody := bodyBytes
+	if cfg.rawBody != nil {
+		requestBody = cfg.rawBody
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, url, bytes.NewReader(requestBody))
 	if err != nil {
 		return nil, fmt.Errorf("bachs: build request: %w", err)
 	}
@@ -124,8 +176,12 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any,
 	req.Header.Set(headerAuthorization, "Bearer "+c.apiKey)
 	req.Header.Set(headerAccept, "application/json")
 
-	if len(bodyBytes) > 0 {
-		req.Header.Set(headerContentType, "application/json")
+	if len(requestBody) > 0 {
+		contentType := "application/json"
+		if cfg.contentType != "" {
+			contentType = cfg.contentType
+		}
+		req.Header.Set(headerContentType, contentType)
 	}
 
 	// Idempotency-Key is only ever attached to POST requests. Enforced here,

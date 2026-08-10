@@ -109,6 +109,19 @@ type Client struct {
 	// Misc provides account-wide endpoints: balances, payment methods,
 	// payment rails, and supported currencies.
 	Misc *MiscService
+
+	// Media provides methods for uploading files and retrieving or deleting
+	// the uploads. Upload IDs attach to products via the media field.
+	Media *MediaService
+
+	// CustomerSessions provides methods for opening the customer portal as a
+	// specific customer.
+	CustomerSessions *CustomerSessionService
+
+	// ConnectedAccounts provides methods for the Connect platform: creating
+	// and reading connected accounts, requesting capabilities, walking their
+	// onboarding Tasks, and managing account documents.
+	ConnectedAccounts *ConnectedAccountService
 }
 
 // NewClient returns a Bachs API client authenticated with apiKey.
@@ -142,6 +155,9 @@ func NewClient(apiKey string, opts ...Option) (*Client, error) {
 	c.Subscriptions = &SubscriptionService{service{request: c.do}}
 	c.Transfers = &TransferService{service{request: c.do}}
 	c.Misc = &MiscService{service{request: c.do}}
+	c.Media = &MediaService{service{request: c.do}}
+	c.CustomerSessions = &CustomerSessionService{service{request: c.do}}
+	c.ConnectedAccounts = &ConnectedAccountService{service{request: c.do}}
 
 	return c, nil
 }

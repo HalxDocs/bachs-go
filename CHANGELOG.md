@@ -4,6 +4,31 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **Payouts** — supported currencies, quotes, payout destination CRUD,
+  bank-account resolution and bank listings, and withdrawal create/get/list.
+- **Disputes** — list/get with status and date filters, multipart document
+  uploads for evidence, incremental evidence updates, and the irreversible
+  submit action.
+- **Conversions** — quoting, executing against a quote ID, and reading
+  conversion records with currency and status filters.
+- **Organizations** — `GetMe`, `Get` by ID, and checkout-settings
+  read/update.
+- **Webhook management** — endpoint create/list/get/update/delete, signing
+  secret read and rotation, delivery metrics, per-endpoint and org-wide event
+  listing with payloads and attempt history, resending a delivery, and
+  replaying an event. Event types are exposed as typed `EventType*`
+  constants.
+
+### Changed
+
+- `ListParams` gained `FromDate`/`ToDate`, `StartDate`/`EndDate`, and
+  `FromCurrency`/`ToCurrency` filters used by the disputes and conversions
+  list endpoints.
+
 ## [v1.0.0] - 2026-08-10
 
 Initial release of the Bachs Go SDK, covering the full v1 API surface:

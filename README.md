@@ -304,6 +304,23 @@ session, _, err := client.Checkouts.Create(ctx, bachs.CreateCheckoutSessionReque
     bachs.WithIdempotencyKey("session-12345"))
 ```
 
+## API reference (offline docs)
+
+The full API reference is browsable without pkg.go.dev: `scripts/gen-docs.sh`
+generates a static, pkg.go.dev-style site into `docs/` using
+[golds](https://go101.org/golds) (pinned to v0.8.7). Because golds renders
+the doc comments and source of the module directly, the reference can never
+drift from the code.
+
+```sh
+./scripts/gen-docs.sh      # generates docs/ (~11 MB, gitignored)
+./scripts/serve-docs.sh    # serves it at http://127.0.0.1:56789
+```
+
+Or open `docs/index.html` directly, or serve the folder with any static file
+server (e.g. `python -m http.server --directory docs`). Set `DOCS_PORT` to
+change the serve port.
+
 ## Contributing
 
 Run the checks before pushing:

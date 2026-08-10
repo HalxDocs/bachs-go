@@ -1,2 +1,5 @@
 # Freebuff desktop app data (not part of the module)
 .freebuff/
+
+# Generated API docs site (regenerate with ./scripts/gen-docs.sh)
+docs/

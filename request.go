@@ -38,6 +38,17 @@ func WithIdempotencyKey(key string) RequestOption {
 	}
 }
 
+// requestFunc is the client's internal request method, injected into each
+// service. Services hold this function rather than the *Client, so they can
+// issue API calls without exposing the client's internals.
+type requestFunc func(ctx context.Context, method, path string, body any, out any, opts ...RequestOption) (*ResponseMeta, error)
+
+// service is embedded by every resource service. It carries only the request
+// function — never the *Client.
+type service struct {
+	request requestFunc
+}
+
 // ResponseMeta holds per-response metadata Bachs sends in headers: the request
 // ID, for support, and the current rate-limit budget.
 type ResponseMeta struct {

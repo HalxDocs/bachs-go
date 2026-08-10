@@ -79,6 +79,19 @@ type Client struct {
 	baseURL    string
 	apiKey     string
 	httpClient *http.Client
+
+	// Checkouts provides methods for creating and retrieving checkout
+	// sessions.
+	Checkouts *CheckoutService
+
+	// Products provides methods for managing the billing catalog.
+	Products *ProductService
+
+	// Customers provides methods for managing customers.
+	Customers *CustomerService
+
+	// Payments provides methods for retrieving payments.
+	Payments *PaymentService
 }
 
 // NewClient returns a Bachs API client authenticated with apiKey.
@@ -103,6 +116,12 @@ func NewClient(apiKey string, opts ...Option) (*Client, error) {
 	}
 
 	c.baseURL = strings.TrimRight(c.baseURL, "/")
+
+	c.Checkouts = &CheckoutService{service{request: c.do}}
+	c.Products = &ProductService{service{request: c.do}}
+	c.Customers = &CustomerService{service{request: c.do}}
+	c.Payments = &PaymentService{service{request: c.do}}
+
 	return c, nil
 }
 

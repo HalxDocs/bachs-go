@@ -117,6 +117,15 @@ func (p ListParams) queryValues() url.Values {
 	return v
 }
 
+// queryPath appends the ListParams as a query string to path, if any are set.
+// Used by every List* method to build its request URL.
+func queryPath(path string, params ListParams) string {
+	if q := params.queryValues().Encode(); q != "" {
+		return path + "?" + q
+	}
+	return path
+}
+
 // pageEnvelope is the internal decode target for list responses. Most list
 // endpoints return { items, pagination }; a few (refunds, transfers, connected
 // accounts) return top-level { items, total, limit, offset } instead. This

@@ -138,6 +138,10 @@ type Client struct {
 	// Organizations provides methods for reading your own organization and
 	// managing its checkout configuration.
 	Organizations *OrganizationService
+
+	// Webhooks provides the webhook management API: registering delivery
+	// endpoints, monitoring delivery metrics, and replaying events.
+	Webhooks *WebhookService
 }
 
 // NewClient returns a Bachs API client authenticated with apiKey.
@@ -178,6 +182,7 @@ func NewClient(apiKey string, opts ...Option) (*Client, error) {
 	c.Disputes = &DisputeService{service{request: c.do}}
 	c.Conversions = &ConversionService{service{request: c.do}}
 	c.Organizations = &OrganizationService{service{request: c.do}}
+	c.Webhooks = &WebhookService{service{request: c.do}}
 
 	return c, nil
 }

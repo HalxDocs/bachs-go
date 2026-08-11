@@ -50,6 +50,18 @@ func TestListParamsQueryValues(t *testing.T) {
 				"connected_account_id": {"org_2"},
 			},
 		},
+		{
+			name:   "date and currency filters",
+			params: ListParams{FromDate: "2026-01-01", ToDate: "2026-01-31", StartDate: "2026-01-01", EndDate: "2026-01-31", FromCurrency: "USD", ToCurrency: "NGN"},
+			want: url.Values{
+				"from_date":     {"2026-01-01"},
+				"to_date":       {"2026-01-31"},
+				"start_date":    {"2026-01-01"},
+				"end_date":      {"2026-01-31"},
+				"from_currency": {"USD"},
+				"to_currency":   {"NGN"},
+			},
+		},
 	}
 
 	for _, tc := range cases {

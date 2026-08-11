@@ -561,3 +561,112 @@ func TestDoPipelineSequence(t *testing.T) {
 		t.Errorf("hop 3 RateLimitRemaining = %d, want 97", meta3.RateLimitRemaining)
 	}
 }
+
+// TestDoErrorDecodeEdgeCases drives the defensive branches of the error
+// pipeline: bodies that are not JSON, status codes with no standard text,
+// error bodies that fail mid-read, and request construction failures before
+// anything is sent.
+func TestDoErrorDecodeEdgeCases(t *testing.T) {
+	t.Run("non-JSON error body gets generic code", func(t *testing.T) {
+		c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set(headerRequestID, "req_nonjson")
+			w.WriteHeader(http.StatusBadGateway)
+			io.WriteString(w, "<html>Bad Gateway</html>")
+		})
+		_, err := c.do(context.Background(), http.MethodGet, "/things", nil, nil)
+		var apiErr *APIError
+		if !errors.As(err, &apiErr) {
+			t.Fatalf("error = %v, want *APIError", err)
+		}
+		if apiErr.Code != "Bad Gateway" {
+			t.Errorf("Code = %q, want %q", apiErr.Code, "Bad Gateway")
+		}
+		if apiErr.Detail != "request failed" {
+			t.Errorf("Detail = %q, want %q", apiErr.Detail, "request failed")
+		}
+		if apiErr.RequestID != "req_nonjson" {
+			t.Errorf("RequestID = %q, want req_nonjson", apiErr.RequestID)
+		}
+	})
+
+	t.Run("json body without error_code keeps its detail", func(t *testing.T) {
+		// Valid JSON that carries a detail but no error_code (for example a
+		// gateway or upstream error passthrough): the generic-code path must
+		// still surface the body's detail.
+		c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set(headerRequestID, "req_nocode")
+			w.WriteHeader(http.StatusBadRequest)
+			io.WriteString(w, `{"detail":"upstream declined"}`)
+		})
+		_, err := c.do(context.Background(), http.MethodGet, "/things", nil, nil)
+		var apiErr *APIError
+		if !errors.As(err, &apiErr) {
+			t.Fatalf("error = %v, want *APIError", err)
+		}
+		if apiErr.Code != "Bad Request" {
+			t.Errorf("Code = %q, want %q", apiErr.Code, "Bad Request")
+		}
+		if apiErr.Detail != "upstream declined" {
+			t.Errorf("Detail = %q, want %q", apiErr.Detail, "upstream declined")
+		}
+	})
+
+	t.Run("nonstandard status gets HTTP n code", func(t *testing.T) {
+		c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set(headerRequestID, "req_599")
+			w.WriteHeader(599)
+			io.WriteString(w, "opaque failure")
+		})
+		_, err := c.do(context.Background(), http.MethodGet, "/things", nil, nil)
+		var apiErr *APIError
+		if !errors.As(err, &apiErr) {
+			t.Fatalf("error = %v, want *APIError", err)
+		}
+		if apiErr.Code != "HTTP 599" {
+			t.Errorf("Code = %q, want %q", apiErr.Code, "HTTP 599")
+		}
+		if apiErr.StatusCode != 599 {
+			t.Errorf("StatusCode = %d, want 599", apiErr.StatusCode)
+		}
+	})
+
+	t.Run("error body read failure keeps generic detail", func(t *testing.T) {
+		// Declare more bytes than the handler sends, so the client's
+		// ReadAll fails with an unexpected EOF while reading the error body.
+		c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set(headerRequestID, "req_trunc")
+			w.Header().Set("Content-Length", "1000")
+			w.WriteHeader(http.StatusBadRequest)
+			io.WriteString(w, `{"detail":"truncated"}`)
+		})
+		_, err := c.do(context.Background(), http.MethodGet, "/things", nil, nil)
+		var apiErr *APIError
+		if !errors.As(err, &apiErr) {
+			t.Fatalf("error = %v, want *APIError", err)
+		}
+		if apiErr.Detail != "failed to read error response body" {
+			t.Errorf("Detail = %q, want %q", apiErr.Detail, "failed to read error response body")
+		}
+	})
+
+	t.Run("unencodable request body", func(t *testing.T) {
+		c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+			t.Error("request should not have been sent")
+		})
+		_, err := c.do(context.Background(), http.MethodPost, "/things", struct{ F chan int }{}, nil)
+		if err == nil || !strings.Contains(err.Error(), "encode request body") {
+			t.Fatalf("err = %v, want encode request body error", err)
+		}
+	})
+
+	t.Run("invalid base URL fails request build", func(t *testing.T) {
+		c, err := NewClient("sk_sandbox_test", WithBaseURL("://invalid"))
+		if err != nil {
+			t.Fatalf("NewClient: %v", err)
+		}
+		_, err = c.do(context.Background(), http.MethodGet, "/things", nil, nil)
+		if err == nil || !strings.Contains(err.Error(), "build request") {
+			t.Fatalf("err = %v, want build request error", err)
+		}
+	})
+}

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -467,5 +468,96 @@ func TestResponseMetaMissingRateLimitHeaders(t *testing.T) {
 	}
 	if !meta.RateLimitReset.IsZero() {
 		t.Errorf("expected zero RateLimitReset when header is absent, got %v", meta.RateLimitReset)
+	}
+}
+
+// TestDoPipelineSequence drives the full request pipeline through three
+// consecutive hops on one client — a 204 (decode skipped), a 500 (surfaced
+// as *APIError), and a 200 (decoded) — asserting ResponseMeta is populated
+// on every hop, including the error hop.
+func TestDoPipelineSequence(t *testing.T) {
+	var calls int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.Header().Set(headerRequestID, "req_seq_"+strconv.Itoa(calls))
+		w.Header().Set(headerRateLimitLimit, "100")
+		w.Header().Set(headerRateLimitRemaining, strconv.Itoa(100-calls))
+		w.Header().Set(headerRateLimitReset, "1783976340")
+		switch calls {
+		case 1:
+			w.WriteHeader(http.StatusNoContent)
+		case 2:
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			io.WriteString(w, `{"detail": "boom", "error_code": "INTERNAL_ERROR"}`)
+		case 3:
+			writeJSON(t, w, http.StatusOK, map[string]any{"id": "pay_seq_1", "amount": "29.00"})
+		default:
+			t.Errorf("unexpected %dth request", calls)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	c, err := NewClient("sk_sandbox_test", WithBaseURL(srv.URL))
+	if err != nil {
+		t.Fatalf("NewClient returned error: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// Hop 1: 204 — response body must be skipped entirely.
+	type paymentOut struct {
+		ID string `json:"id"`
+	}
+	var out paymentOut
+	meta1, err := c.do(ctx, http.MethodGet, "/payments/pay_1", nil, &out)
+	if err != nil {
+		t.Fatalf("hop 1 (204) returned error: %v", err)
+	}
+	if meta1.RequestID != "req_seq_1" {
+		t.Errorf("hop 1 RequestID = %q, want req_seq_1", meta1.RequestID)
+	}
+	if meta1.RateLimitLimit != 100 || meta1.RateLimitRemaining != 99 {
+		t.Errorf("hop 1 rate limits = %+v", meta1)
+	}
+	if meta1.RateLimitReset.IsZero() {
+		t.Error("hop 1 RateLimitReset is zero, want parsed unix time")
+	}
+
+	// Hop 2: 500 — surfaced as *APIError, but meta still populated.
+	meta2, err := c.do(ctx, http.MethodGet, "/payments/pay_2", nil, &out)
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("hop 2 error = %v, want *APIError", err)
+	}
+	if apiErr.StatusCode != http.StatusInternalServerError || apiErr.Code != "INTERNAL_ERROR" {
+		t.Errorf("hop 2 APIError = %+v", apiErr)
+	}
+	if apiErr.RequestID != "req_seq_2" {
+		t.Errorf("hop 2 APIError.RequestID = %q, want req_seq_2", apiErr.RequestID)
+	}
+	if meta2 == nil {
+		t.Fatal("hop 2 ResponseMeta is nil")
+	}
+	if meta2.RequestID != "req_seq_2" {
+		t.Errorf("hop 2 meta.RequestID = %q, want req_seq_2", meta2.RequestID)
+	}
+	if meta2.RateLimitRemaining != 98 {
+		t.Errorf("hop 2 RateLimitRemaining = %d, want 98", meta2.RateLimitRemaining)
+	}
+
+	// Hop 3: 200 — decoded into out, meta populated again.
+	meta3, err := c.do(ctx, http.MethodGet, "/payments/pay_3", nil, &out)
+	if err != nil {
+		t.Fatalf("hop 3 (200) returned error: %v", err)
+	}
+	if out.ID != "pay_seq_1" {
+		t.Errorf("hop 3 decoded ID = %q, want pay_seq_1", out.ID)
+	}
+	if meta3.RequestID != "req_seq_3" {
+		t.Errorf("hop 3 RequestID = %q, want req_seq_3", meta3.RequestID)
+	}
+	if meta3.RateLimitRemaining != 97 {
+		t.Errorf("hop 3 RateLimitRemaining = %d, want 97", meta3.RateLimitRemaining)
 	}
 }

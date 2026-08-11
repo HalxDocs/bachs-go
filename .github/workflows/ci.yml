@@ -46,6 +46,45 @@ jobs:
       - name: Test with race detector
         run: go test -race ./...
 
+  coverage:
+    name: Coverage gate (main package ≥ 95%)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: true
+
+      - name: Coverage gate
+        run: |
+          coverage=$(go test -cover ./ | sed -n 's/.*coverage: \([0-9.]*\)% of statements.*/\1/p')
+          if [ -z "$coverage" ]; then
+            echo "Could not determine coverage" >&2
+            exit 1
+          fi
+          echo "Main package statement coverage: ${coverage}%"
+          awk -v c="$coverage" 'BEGIN { if (c + 0 < 95) { print "Coverage " c "% is below the 95% gate" > "/dev/stderr"; exit 1 } }'
+
+  fuzz:
+    name: Fuzz webhook verifier (smoke)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: true
+
+      - name: Fuzz webhook.ConstructEvent
+        run: go test ./webhook/ -fuzz FuzzConstructEvent -fuzztime 20s
+
   staticcheck:
     name: Staticcheck
     runs-on: ubuntu-latest

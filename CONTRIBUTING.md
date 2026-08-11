@@ -23,6 +23,8 @@ go vet ./...
 staticcheck ./...   # install with: go install honnef.co/go/tools/cmd/staticcheck@latest
 go test ./...
 go test -race ./... # data races in tests would fail CI
+go test -cover ./   # main-package statement coverage must stay ≥ 95% (CI gates on it)
+go test ./webhook/ -fuzz FuzzConstructEvent -fuzztime 15s # fuzz smoke run
 gofmt -l .          # must print nothing
 ```
 

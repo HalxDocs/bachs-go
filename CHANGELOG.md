@@ -14,6 +14,18 @@ this project adheres to [Semantic Versioning](https://semver.org/).
   an Apache-2.0 `LICENSE` (with its explicit patent grant); and a CI
   workflow running build, vet, staticcheck, gofmt, and tests across Go
   1.21–1.24.
+- **CI coverage gate** — a dedicated job fails the build if main-package
+  statement coverage drops below 95% (currently 99.6%).
+- **CI fuzz smoke** — a job fuzzes `webhook.ConstructEvent` for 20s on every
+  push and PR, on top of the seed-corpus runs in the build matrix.
+
+### Changed
+
+- The test suite now covers the error branch of every service method via a
+  table-driven test, the pipeline's defensive branches (non-JSON and
+  truncated error bodies, unencodable bodies, invalid base URLs), and the
+  idempotent retry-after-error flow. `go test -cover ./` and a fuzz smoke
+  run are documented in `CONTRIBUTING.md`.
 
 ## [v1.1.0] - 2026-08-11
 

@@ -16,6 +16,7 @@ describe the conservative choice made. -->
 - [ ] `staticcheck ./...` passes
 - [ ] `gofmt -l .` prints nothing
 - [ ] `go test ./...` passes
+- [ ] `go test -race ./...` passes (no data races)
 - [ ] New endpoints have httptest coverage using the exact example payload
       from the cited docs
 

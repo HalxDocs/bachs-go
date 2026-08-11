@@ -485,12 +485,21 @@ func TestDoPipelineSequence(t *testing.T) {
 		w.Header().Set(headerRateLimitReset, "1783976340")
 		switch calls {
 		case 1:
+			if r.Method != http.MethodGet || r.URL.Path != "/v1/payments/pay_1" {
+				t.Errorf("hop 1 got %s %s, want GET /v1/payments/pay_1", r.Method, r.URL.Path)
+			}
 			w.WriteHeader(http.StatusNoContent)
 		case 2:
+			if r.Method != http.MethodGet || r.URL.Path != "/v1/payments/pay_2" {
+				t.Errorf("hop 2 got %s %s, want GET /v1/payments/pay_2", r.Method, r.URL.Path)
+			}
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusInternalServerError)
 			io.WriteString(w, `{"detail": "boom", "error_code": "INTERNAL_ERROR"}`)
 		case 3:
+			if r.Method != http.MethodGet || r.URL.Path != "/v1/payments/pay_3" {
+				t.Errorf("hop 3 got %s %s, want GET /v1/payments/pay_3", r.Method, r.URL.Path)
+			}
 			writeJSON(t, w, http.StatusOK, map[string]any{"id": "pay_seq_1", "amount": "29.00"})
 		default:
 			t.Errorf("unexpected %dth request", calls)
@@ -669,4 +678,66 @@ func TestDoErrorDecodeEdgeCases(t *testing.T) {
 			t.Fatalf("err = %v, want build request error", err)
 		}
 	})
+}
+
+// TestDoIdempotencyRetryAfterError drives the real-world idempotency flow
+// through the whole pipeline: a POST with an Idempotency-Key that fails with
+// a 5xx, retried with the same key. Because Bachs caches 2xx responses only,
+// the retry is a fresh attempt — the SDK must attach the key on both POSTs
+// and surface the 500 as an *APIError before the retry succeeds.
+func TestDoIdempotencyRetryAfterError(t *testing.T) {
+	const key = "order_ORD-42_attempt_1"
+
+	var attempts int
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/v1/payments" {
+			t.Errorf("path = %q, want /v1/payments", r.URL.Path)
+		}
+		if got := r.Header.Get(headerIdempotencyKey); got != key {
+			t.Errorf("Idempotency-Key = %q, want %q", got, key)
+		}
+		attempts++
+		switch attempts {
+		case 1:
+			writeJSON(t, w, http.StatusInternalServerError, map[string]any{"detail": "boom", "error_code": "INTERNAL_ERROR"})
+		case 2:
+			writeJSON(t, w, http.StatusCreated, map[string]any{"id": "pay_42"})
+		default:
+			t.Errorf("unexpected %dth request", attempts)
+		}
+	})
+
+	payload := map[string]any{"amount": "29.00"}
+	var out struct {
+		ID string `json:"id"`
+	}
+
+	// First attempt with the key: the 500 surfaces as an *APIError.
+	_, err := c.do(context.Background(), http.MethodPost, "/payments", payload, &out, WithIdempotencyKey(key))
+	if err == nil {
+		t.Fatal("first attempt returned nil error, want 500 *APIError")
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("first attempt error = %v, want 500 *APIError", err)
+	}
+	if apiErr.Code != "INTERNAL_ERROR" {
+		t.Errorf("first attempt Code = %q, want INTERNAL_ERROR", apiErr.Code)
+	}
+
+	// Same key retried: fresh attempt (no 2xx was cached), succeeds and
+	// decodes into out.
+	_, err = c.do(context.Background(), http.MethodPost, "/payments", payload, &out, WithIdempotencyKey(key))
+	if err != nil {
+		t.Fatalf("retry returned error: %v", err)
+	}
+	if out.ID != "pay_42" {
+		t.Errorf("retry ID = %q, want pay_42", out.ID)
+	}
+	if attempts != 2 {
+		t.Errorf("attempts = %d, want 2 (key sent on both POSTs)", attempts)
+	}
 }

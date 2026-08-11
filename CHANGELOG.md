@@ -4,7 +4,11 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [v1.2.0] - 2026-08-11
+
+Hardening release: the full API surface is now under table-driven error-branch
+coverage (99.6% of statements in the main package), CI enforces that floor and
+fuzzes the webhook verifier, and the repo is set up for external contributors.
 
 ### Added
 
@@ -18,6 +22,12 @@ this project adheres to [Semantic Versioning](https://semver.org/).
   statement coverage drops below 95% (currently 99.6%).
 - **CI fuzz smoke** — a job fuzzes `webhook.ConstructEvent` for 20s on every
   push and PR, on top of the seed-corpus runs in the build matrix.
+- **Race detector** — `go test -race ./...` in the CI matrix on every Go
+  version, with the local command documented in `CONTRIBUTING.md`.
+- **Webhook fuzz test** — `FuzzConstructEvent` feeds random raw bodies,
+  signature/timestamp headers, secrets, and tolerances into the verifier,
+  asserting it never panics and that any success implies a genuine
+  signature under the documented sentinel-error classification.
 
 ### Changed
 

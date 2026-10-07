@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [v1.3.0] - 2026-10-07
 
 Catches up with the API changelog through the Week of Sep 21, 2026
 (virtual accounts). The Jul 27 additions (`billing_address`, the new

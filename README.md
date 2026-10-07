@@ -388,6 +388,25 @@ settings, _, _ = client.Organizations.UpdateCheckoutSettings(ctx, bachs.UpdateCh
 })
 ```
 
+### Product groups & reference data
+
+```go
+// Named sets of products sold together (e.g. behind a SELECTION checkout):
+group, _, _ := client.ProductGroups.Create(ctx, bachs.CreateProductGroupRequest{
+    Name:       "Starter pack",
+    ProductIDs: []string{"prod_...", "prod_..."},
+})
+group, _, _ = client.ProductGroups.Get(ctx, group.ID)
+page, _, _ = client.ProductGroups.List(ctx, bachs.ListParams{})
+
+// Account-independent lookups for onboarding and payouts:
+banks, _, _ := client.Reference.ListBanks(ctx, "NG")
+providers, _, _ := client.Reference.ListMobileMoneyProviders(ctx, "GH")
+structures, _, _ := client.Reference.ListBusinessStructures(ctx)
+categories, _, _ := client.Reference.ListProductCategories(ctx)
+resolved, _, _ := client.Reference.ResolveBankAccount(ctx, "058", "0123456789")
+```
+
 ### Webhook management
 
 Register delivery endpoints, monitor delivery health, and replay missed
@@ -419,7 +438,7 @@ request body**:
 ```go
 event, err := webhook.ConstructEvent(rawBody, sigHeader, tsHeader, secret, 5*time.Minute)
 switch event.Type {
-case "checkout.session.completed":
+case bachs.EventTypeCheckoutCompleted:
     // fulfill the order
 }
 ```

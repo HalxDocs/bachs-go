@@ -14,7 +14,7 @@ func TestGetMeOrganization(t *testing.T) {
 		if r.Method != http.MethodGet {
 			t.Errorf("method = %s, want GET", r.Method)
 		}
-		if r.URL.Path != "/v1/organizations/me" {
+		if r.URL.Path != "/v1/accounts/me" {
 			t.Errorf("path = %q", r.URL.Path)
 		}
 		io.WriteString(w, `{
@@ -23,6 +23,7 @@ func TestGetMeOrganization(t *testing.T) {
 			"owner_user_id": "usr_7b3e19d24c0a",
 			"parent_organization_id": null,
 			"country": "NG",
+			"entity_type": "individual",
 			"fee_handling": "org_pays_fee",
 			"enabled_payment_methods": {
 				"bank_transfer": {
@@ -34,6 +35,8 @@ func TestGetMeOrganization(t *testing.T) {
 					"currencies": {"GHS": true}
 				}
 			},
+			"configuration": {"recipient": {}},
+			"responsibilities": {"fees": {"collector": "bachs"}},
 			"adaptive_pricing": true,
 			"balance_currencies": ["NGN", "USD"],
 			"website": null,
@@ -78,6 +81,12 @@ func TestGetMeOrganization(t *testing.T) {
 	if !org.IsActive {
 		t.Error("IsActive = false, want true")
 	}
+	if org.EntityType == nil || *org.EntityType != "individual" {
+		t.Errorf("EntityType = %v, want individual", org.EntityType)
+	}
+	if _, ok := org.Configuration["recipient"]; !ok {
+		t.Errorf("Configuration = %v, want a recipient persona", org.Configuration)
+	}
 }
 
 // TestGetOrganization uses the exact example payload from
@@ -87,7 +96,7 @@ func TestGetOrganization(t *testing.T) {
 		if r.Method != http.MethodGet {
 			t.Errorf("method = %s, want GET", r.Method)
 		}
-		if r.URL.Path != "/v1/organizations/org_9f2c4a1b7e3d5086" {
+		if r.URL.Path != "/v1/accounts/org_9f2c4a1b7e3d5086" {
 			t.Errorf("path = %q", r.URL.Path)
 		}
 		io.WriteString(w, `{
@@ -168,7 +177,7 @@ func TestGetCheckoutSettings(t *testing.T) {
 		if r.Method != http.MethodGet {
 			t.Errorf("method = %s, want GET", r.Method)
 		}
-		if r.URL.Path != "/v1/organizations/checkout/settings" {
+		if r.URL.Path != "/v1/accounts/checkout/settings" {
 			t.Errorf("path = %q", r.URL.Path)
 		}
 		io.WriteString(w, `{
@@ -206,7 +215,7 @@ func TestUpdateCheckoutSettings(t *testing.T) {
 		if r.Method != http.MethodPut {
 			t.Errorf("method = %s, want PUT", r.Method)
 		}
-		if r.URL.Path != "/v1/organizations/checkout/settings" {
+		if r.URL.Path != "/v1/accounts/checkout/settings" {
 			t.Errorf("path = %q", r.URL.Path)
 		}
 		io.WriteString(w, `{

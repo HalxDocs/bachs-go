@@ -50,7 +50,7 @@ func main() {
 	// 2. Create a checkout session that sells one unit of the product. Bachs
 	// returns a hosted URL; send the customer there to pay.
 	session, _, err := client.Checkouts.Create(ctx, bachs.CreateCheckoutSessionRequest{
-		Customer: bachs.CheckoutCustomer{
+		Customer: &bachs.CheckoutCustomer{
 			Email: "customer@example.com",
 			Name:  "John Doe",
 		},

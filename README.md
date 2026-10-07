@@ -15,11 +15,17 @@ import "github.com/HalxDocs/bachs-go"
 
 ## Features
 
-- **Every API group covered** — checkouts, products, customers, payments,
-  refunds, subscriptions, transfers, balances, media, customer portal
-  sessions, connected accounts (Connect), payouts, disputes, conversions,
-  organizations, payment methods/rails/currencies, and the webhook management
-  API.
+- **Every API group covered** — checkouts (including guest checkout,
+  per-method currency restrictions, corridor allowlists, and Connect
+  splits), products, customers, payments
+  (including virtual-account payer details and Connect split echoes),
+  refunds, subscriptions,
+  transfers, balances (including payout schedules), media, customer portal
+  sessions, connected accounts (Connect), persons, platform fees, payouts
+  (including destination reads), disputes, conversions,
+  organizations, virtual accounts, product groups, reference data,
+  payment methods/rails/currencies, and
+  the webhook management API.
 - **Sandbox-first** — `NewClient` defaults to `https://sandbox-api.bachs.io`;
   production is an explicit opt-in.
 - **Safe by construction** — money is always a decimal string, IDs are opaque
@@ -72,7 +78,7 @@ if err != nil {
 }
 
 session, _, err := client.Checkouts.Create(ctx, bachs.CreateCheckoutSessionRequest{
-    Customer: bachs.CheckoutCustomer{Email: "customer@example.com"},
+    Customer: &bachs.CheckoutCustomer{Email: "customer@example.com"},
     ProductCart: []bachs.ProductItemRequest{
         {ProductID: product.ID, Quantity: 1},
     },
@@ -114,6 +120,37 @@ sends back on every response.
 
 One example per resource group. See the [offline reference](#api-reference)
 for the complete surface.
+
+### Checkouts: guest mode and method restrictions
+
+```go
+// Guest checkout — omit Customer and the hosted page collects the buyer's
+// email and name. customer_creation controls whether they also join your
+// customer directory ("if_required" is the default):
+session, _, _ := client.Checkouts.Create(ctx, bachs.CreateCheckoutSessionRequest{
+    ProductCart: []bachs.ProductItemRequest{
+        {ProductID: "prod_...", Quantity: 1},
+    },
+    SuccessURL:       "https://example.com/success",
+    CustomerCreation: bachs.CustomerCreationAlways,
+})
+
+// Restrict which methods (and which currencies per method) a checkout
+// offers — a method left out is not offered at all:
+session, _, _ = client.Checkouts.Create(ctx, bachs.CreateCheckoutSessionRequest{
+    Customer:    &bachs.CheckoutCustomer{Email: "customer@example.com"},
+    ProductCart: []bachs.ProductItemRequest{{ProductID: "prod_..."}},
+    SuccessURL:  "https://example.com/success",
+    PaymentMethodOptions: map[string]bachs.PaymentMethodOption{
+        "card":          {Currencies: []string{"USD"}},
+        "bank_transfer": {},
+    },
+})
+
+// However the buyer identified themselves, their email and name are on
+// session.CustomerDetails, whether or not a customer record exists:
+fmt.Println(session.CheckoutID)
+```
 
 ### Products & customers
 
@@ -205,6 +242,26 @@ link, _, _ := client.ConnectedAccounts.CreateAccountLink(ctx, account.ID, bachs.
     RefreshURL: "https://adastores.example/connect/refresh",
     ReturnURL:  "https://adastores.example/connect/return",
 })
+
+// Submit the representative with their ID numbers, attach the ID document,
+// and read the verification result:
+rep := true
+firstName, lastName, country := "Ada", "Obi", "NG"
+person, _, _ := client.Persons.Create(ctx, account.ID, bachs.CreatePersonRequest{
+    FirstName: &firstName,
+    LastName:  &lastName,
+    Relationship: &bachs.PersonRelationshipRequest{Representative: &rep},
+    IDNumbers: []bachs.PersonIDNumberRequest{
+        {Type: "nin", Value: "12345678901", IssuingCountry: &country},
+    },
+})
+_, _, _ = client.Persons.AttachDocument(ctx, account.ID, person.ID, bachs.AttachPersonDocumentRequest{
+    File:     uploadID, // from an upload with scope "identity_document"
+    Document: bachs.PersonDocumentPrimary,
+})
+
+// Read back your cut of a Connect sale (fee-first splits only):
+page, _, _ := client.PlatformFees.List(ctx, bachs.ListParams{Charge: "ch_..."})
 ```
 
 ### Media & payment methods
@@ -219,6 +276,22 @@ methods, _, _ := client.Misc.ListPaymentMethods(ctx)
 rails, _, _ := client.Misc.ListPaymentRails(ctx, "BANK_TRANSFER", "NGN", "")
 currencies, _, _ := client.Misc.ListSupportedCurrencies(ctx)
 payoutCurrencies, _, _ := client.Misc.ListPayoutSupportedCurrencies(ctx)
+```
+
+### Virtual accounts
+
+Issue a fixed NGN bank account number for your platform (or a connected
+account via `bachs.WithConnectedAccount`), and read it back. Each deposit
+becomes a payment reported through the `collection.succeeded` webhook with
+a null checkout ID — distinguish deposits sharing one number with
+`payment.PaymentMethodDetails`:
+
+```go
+va, _, _ := client.VirtualAccounts.Create(ctx, bachs.CreateVirtualAccountRequest{
+    Currency: "NGN",
+}) // creating twice returns the same number, never a second one
+va, _, _ = client.VirtualAccounts.Get(ctx, "NGN")
+fmt.Println(va.AccountNumber, va.BankName)
 ```
 
 ### Payouts
@@ -254,8 +327,19 @@ withdrawal, _, _ := client.Payouts.CreateWithdrawal(ctx, bachs.CreateWithdrawalR
 payout, _, _ := client.Payouts.Get(ctx, withdrawal.WithdrawalID)
 page, _, _ := client.Payouts.List(ctx, bachs.ListParams{StatusFilter: "processing"})
 
+destination, _, _ := client.Payouts.GetDestination(ctx, destination.ID)
+
 banks, _, _ := client.Payouts.ListBanks(ctx, "NG")
 resolved, _, _ := client.Payouts.ResolveBankAccount(ctx, "058", "0123456789")
+
+// Pay settled collections out automatically, per currency, instead of
+// calling CreateWithdrawal every time:
+schedules, _, _ := client.Misc.GetBalanceSettings(ctx)
+schedules, _, _ = client.Misc.UpdateBalanceSettings(ctx, bachs.UpdateBalanceSettingsRequest{
+    ScheduleByCurrency: map[string]bachs.UpdatePayoutScheduleRequest{
+        "NGN": {Interval: bachs.PayoutScheduleIntervalWeekly, WeeklyPayoutDays: []string{"monday"}},
+    },
+})
 ```
 
 ### Disputes
@@ -355,6 +439,11 @@ if err != nil {
     }
 }
 ```
+
+Checkout errors that leave no payable method have dedicated codes — branch
+on `bachs.ErrCodeAccountNotActivated`,
+`bachs.ErrCodeAccountPaymentMethodsRestricted`, or
+`bachs.ErrCodePaymentMethodNotAllowed` rather than parsing the message.
 
 ## Pagination
 

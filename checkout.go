@@ -32,6 +32,73 @@ type CheckoutCustomer struct {
 	PhoneNumber *string `json:"phone_number,omitempty"`
 }
 
+// Customer creation behavior for a checkout session that collects the
+// buyer's identity on the hosted page. Source:
+// https://docs.bachs.io/guides/checkout/checkout-sessions#whether-a-guest-becomes-a-customer-customer-creation
+const (
+	// CustomerCreationIfRequired is the default: a guest who identifies
+	// themselves on the hosted page does not join the customer directory.
+	// Customer stays null and no customer.created/customer.updated webhook
+	// fires, while the buyer's email and name reach you on CustomerDetails.
+	CustomerCreationIfRequired = "if_required"
+
+	// CustomerCreationAlways creates a customer record for a guest who
+	// identifies themselves on the hosted page, matched by email to an
+	// existing customer where one exists. Ignored for a subscription or
+	// setup checkout, which always create a customer.
+	CustomerCreationAlways = "always"
+)
+
+// PaymentMethodOption restricts which currencies one payment method is
+// offered in on a checkout. A method left out of PaymentMethodOptions is not
+// offered at all; a method included with no Currencies is offered in every
+// currency it supports. For crypto the currencies are asset codes such as
+// "USDT_TRC20" rather than fiat codes. Restricting only ever narrows what
+// the customer sees: it cannot add a method or currency the account is not
+// already enabled for. Source:
+// https://docs.bachs.io/guides/checkout/checkout-sessions#restrict-methods-and-currencies
+type PaymentMethodOption struct {
+	// Currencies the method is offered in. Omit to offer it in all of them.
+	Currencies []string `json:"currencies,omitempty"`
+}
+
+// Checkout payment-method corridors. Each entry is an exact corridor, not a
+// payment type: card, bank transfer, and mobile money are each split into
+// one corridor per currency. Restrict a checkout to a currency by choosing
+// which corridors to list. CRYPTO is one corridor covering every supported
+// asset and network. Source:
+// https://docs.bachs.io/guides/checkout/checkout-sessions#restrict-payment-methods
+const (
+	CorridorUSDCard         = "USD_CARD"
+	CorridorNGNCard         = "NGN_CARD"
+	CorridorNGNBankTransfer = "NGN_BANK_TRANSFER"
+	CorridorMomoGHS         = "MOMO_GHS"
+	CorridorMomoKES         = "MOMO_KES"
+	CorridorMomoTZS         = "MOMO_TZS"
+	CorridorMomoUGX         = "MOMO_UGX"
+	CorridorMomoXAF         = "MOMO_XAF"
+	CorridorMomoXOF         = "MOMO_XOF"
+	CorridorMomoRWF         = "MOMO_RWF"
+	CorridorMomoMWK         = "MOMO_MWK"
+	CorridorMomoZMW         = "MOMO_ZMW"
+	CorridorCrypto          = "CRYPTO"
+)
+
+// CheckoutTransferData states the account's share of a Connect destination
+// charge: what the account receives, with your platform keeping the rest of
+// the sale. Send exactly one of PlatformFee (fee-first) or TransferData
+// (share-first) on a destination charge; sending both, or neither, is
+// rejected. On a direct charge use PlatformFee only. Amounts are decimal
+// strings in the sale's base currency. Source:
+// https://docs.bachs.io/connect/platform-fees
+type CheckoutTransferData struct {
+	// Destination is the account receiving its share.
+	Destination string `json:"destination"`
+
+	// Amount the account receives, as a decimal string.
+	Amount string `json:"amount"`
+}
+
 // ProductItemRequest is one catalog product in a checkout's cart. A product
 // whose price_type is custom (pay-what-you-want) can carry a chosen Amount.
 type ProductItemRequest struct {
@@ -106,9 +173,38 @@ type CreateCheckoutSessionRequest struct {
 	// defaults to the product pricing currency when omitted.
 	BillingCurrency string `json:"billing_currency,omitempty"`
 
-	// AllowedPaymentMethodTypes restricts which payment methods the customer
-	// may use: "card", "crypto", "bank_transfer", "mobile_money".
+	// AllowedPaymentMethodTypes coarsely restricts which payment methods the
+	// customer may use: "card", "crypto", "bank_transfer", "mobile_money".
+	// For per-method currency control, use PaymentMethodOptions instead.
 	AllowedPaymentMethodTypes []string `json:"allowed_payment_method_types,omitempty"`
+
+	// PaymentMethodOptions finely restricts which payment methods a checkout
+	// offers, and which currencies each one is offered in. Keys are "card",
+	// "bank_transfer", "mobile_money", and "crypto". A method left out is
+	// not offered; a method included with no currencies is offered in all
+	// of them. If a restriction leaves nothing payable the request is
+	// rejected rather than creating a checkout nobody can complete.
+	PaymentMethodOptions map[string]PaymentMethodOption `json:"payment_method_options,omitempty"`
+
+	// PaymentMethodTypes restricts which payment-method corridors appear,
+	// by exact corridor name (see the Corridor* constants, for example
+	// CorridorUSDCard or CorridorNGNBankTransfer). A corridor left out is
+	// not offered. The restriction only ever narrows: it cannot offer a
+	// corridor the account is not enabled for, and leaving the checkout
+	// with nothing payable fails the request with
+	// CHECKOUT_RESTRICTION_LEAVES_NO_PAYMENT_METHOD.
+	PaymentMethodTypes []string `json:"payment_method_types,omitempty"`
+
+	// PlatformFee is your platform's cut of a Connect sale, as an amount in
+	// the sale's base currency — never a percentage. Fee-first: the account
+	// gets the rest, and a PlatformFee record is minted. Mutually exclusive
+	// with TransferData.
+	PlatformFee string `json:"platform_fee,omitempty"`
+
+	// TransferData states the account's share of a Connect destination
+	// charge instead of your cut (share-first). No PlatformFee record is
+	// created. Mutually exclusive with PlatformFee.
+	TransferData *CheckoutTransferData `json:"transfer_data,omitempty"`
 
 	// CancelURL is where the customer is sent if they cancel or abandon the
 	// checkout.
@@ -123,7 +219,19 @@ type CreateCheckoutSessionRequest struct {
 	SuccessURL string `json:"success_url,omitempty"`
 
 	// Customer is either an existing customer or the new customer's details.
-	Customer CheckoutCustomer `json:"customer"`
+	// Optional since the Week of Sep 14, 2026 release: omit it and the
+	// hosted checkout page collects the buyer's email and name before they
+	// can pay (guest checkout). It stays required for a subscription
+	// checkout, which always creates a customer record.
+	Customer *CheckoutCustomer `json:"customer,omitempty"`
+
+	// CustomerCreation decides whether a buyer who identifies themselves on
+	// the hosted page also becomes a customer record: "if_required" (the
+	// default) keeps them out of the directory, "always" creates the
+	// record. Ignored for a subscription or setup checkout, which always
+	// create a customer. Use CustomerCreationIfRequired /
+	// CustomerCreationAlways so typos are caught at compile time.
+	CustomerCreation string `json:"customer_creation,omitempty"`
 
 	// Metadata is optional key-value data (max 20 keys, max 10KB total).
 	Metadata map[string]any `json:"metadata,omitempty"`
@@ -206,8 +314,27 @@ type CheckoutSession struct {
 	// PaymentMethod is the payment method selected for the checkout, if any.
 	PaymentMethod *string `json:"payment_method"`
 
-	// Customer attached to the checkout.
+	// PlatformFee echoes the fee-first split sent at creation. Null when
+	// the sale carries no split — or when it was share-first (read
+	// DestinationAmount instead). Always on the wire; test for null rather
+	// than for field presence.
+	PlatformFee *string `json:"platform_fee"`
+
+	// DestinationAmount echoes the share-first split sent at creation.
+	// Null when the sale carries no split — or when it was fee-first.
+	DestinationAmount *string `json:"destination_amount"`
+
+	// Customer attached to the checkout. Null when no customer record backs
+	// the checkout (for example a guest checkout with
+	// customer_creation: "if_required"); read CustomerDetails for the
+	// buyer's identity instead.
 	Customer *CheckoutSessionCustomer `json:"customer"`
+
+	// CustomerDetails is what the buyer supplied: email and name, present
+	// whenever an identity was collected, whether or not a customer record
+	// exists for it. Read it when you want the buyer's identity and do not
+	// care whether a record backs it.
+	CustomerDetails *CheckoutCustomerDetails `json:"customer_details"`
 
 	// SuccessURL is where the customer is redirected after payment.
 	SuccessURL *string `json:"success_url"`
@@ -249,6 +376,16 @@ type CheckoutRecurring struct {
 
 	// IntervalCount is the number of intervals per billing cycle.
 	IntervalCount int `json:"interval_count"`
+}
+
+// CheckoutCustomerDetails is the buyer identity collected on a checkout
+// session: email and name, with or without a backing customer record.
+type CheckoutCustomerDetails struct {
+	// Email the buyer supplied.
+	Email string `json:"email"`
+
+	// Name the buyer supplied. Null when not collected.
+	Name *string `json:"name"`
 }
 
 // CheckoutSessionCustomer is the customer attached to a checkout session.

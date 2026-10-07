@@ -106,6 +106,10 @@ type ListParams struct {
 	// ToCurrency filters by the destination currency. Used by
 	// Conversions.List, which sends it as the to_currency query parameter.
 	ToCurrency string
+
+	// Charge returns only the record tied to this sale. Used by
+	// PlatformFees.List, which sends it as the charge query parameter.
+	Charge string
 }
 
 // queryValues renders the params as URL query values. Fields that are unset
@@ -155,6 +159,9 @@ func (p ListParams) queryValues() url.Values {
 	}
 	if p.ToCurrency != "" {
 		v.Set("to_currency", p.ToCurrency)
+	}
+	if p.Charge != "" {
+		v.Set("charge", p.Charge)
 	}
 	return v
 }

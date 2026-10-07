@@ -143,3 +143,71 @@ func TestPaymentList(t *testing.T) {
 		t.Errorf("Pagination = %+v", page.Pagination)
 	}
 }
+
+// TestPaymentGetMethodDetails verifies the Sep 21, 2026
+// payment_method_details block decodes on a virtual account deposit: a bank
+// transfer with sender details and the receiving virtual account.
+func TestPaymentGetMethodDetails(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{
+			"reference": null,
+			"payment_id": "ch_1a2b3c4d5e6f",
+			"billing_reason": "purchase",
+			"checkout_id": null,
+			"status": "succeeded",
+			"is_refundable": false,
+			"amount": "250000.00",
+			"currency": "NGN",
+			"payment_method": "NGN_BANK_TRANSFER",
+			"payment_method_details": {
+				"type": "bank_transfer",
+				"bank_transfer": {
+					"sender_name": "JANE ADEYEMI",
+					"sender_bank": "Guaranty Trust Bank",
+					"sender_account_number": "2294879124",
+					"session_id": "000013260922104115000821734502",
+					"virtual_account": {
+						"id": "va_8Hs2kQ4mZpXv",
+						"account_number": "9902847361",
+						"bank_name": "Example Bank",
+						"type": "permanent",
+						"expires_at": null
+					}
+				}
+			},
+			"created_at": "2026-09-22T10:41:18.000Z",
+			"updated_at": "2026-09-22T10:41:18.000Z"
+		}`)
+	})
+
+	payment, _, err := c.Payments.Get(context.Background(), "ch_1a2b3c4d5e6f")
+	if err != nil {
+		t.Fatalf("Get returned error: %v", err)
+	}
+	if payment.CheckoutID != nil {
+		t.Errorf("CheckoutID = %v, want nil for a virtual account deposit", payment.CheckoutID)
+	}
+	if payment.IsRefundable == nil || *payment.IsRefundable {
+		t.Errorf("IsRefundable = %v, want false for a deposit", payment.IsRefundable)
+	}
+	details := payment.PaymentMethodDetails
+	if details == nil {
+		t.Fatal("PaymentMethodDetails is nil, want the bank transfer details")
+	}
+	if details.Type != "bank_transfer" {
+		t.Errorf("Type = %q, want bank_transfer", details.Type)
+	}
+	bt := details.BankTransfer
+	if bt == nil {
+		t.Fatal("BankTransfer is nil")
+	}
+	if bt.SenderName == nil || *bt.SenderName != "JANE ADEYEMI" {
+		t.Errorf("SenderName = %v", bt.SenderName)
+	}
+	if bt.SessionID == nil || *bt.SessionID != "000013260922104115000821734502" {
+		t.Errorf("SessionID = %v", bt.SessionID)
+	}
+	if bt.VirtualAccount == nil || bt.VirtualAccount.AccountNumber != "9902847361" {
+		t.Errorf("VirtualAccount = %+v", bt.VirtualAccount)
+	}
+}

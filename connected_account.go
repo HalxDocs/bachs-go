@@ -42,6 +42,19 @@ type ConnectedAccount struct {
 	// account is given.
 	Country *string `json:"country"`
 
+	// EntityType is "company" or "individual". Null until set.
+	EntityType *string `json:"entity_type"`
+
+	// Configuration names the personas applied to the account (for example
+	// "recipient" and "merchant"), each with the capabilities nested under
+	// it. Null when the account carries no Connect configuration.
+	Configuration map[string]any `json:"configuration"`
+
+	// Responsibilities records fixed arrangements for the account, such as
+	// who absorbs processing fees on its own charges
+	// (responsibilities.fees.collector). Null when unset.
+	Responsibilities map[string]any `json:"responsibilities"`
+
 	// FeeHandling is who absorbs processing fees at checkout:
 	// "org_pays_fee" or "customer_pays_fee".
 	FeeHandling string `json:"fee_handling"`
@@ -149,6 +162,38 @@ type AccountRequirements struct {
 	PendingVerification []string `json:"pending_verification"`
 
 	// Errors are fields that were provided and then rejected.
+	Errors []RequirementError `json:"errors"`
+
+	// CurrentDeadline is the nearest outstanding deadline across entries.
+	// Null when no dated requirement is outstanding.
+	CurrentDeadline *time.Time `json:"current_deadline"`
+
+	// Entries is the field-level view: every outstanding field, its state,
+	// and the capabilities it holds up. Render these as the onboarding
+	// form.
+	Entries []RequirementEntry `json:"entries"`
+}
+
+// RequirementEntry is one field in an account's requirements: its state and
+// what it unlocks.
+type RequirementEntry struct {
+	// Field is the canonical key (for example "persons.name" or
+	// "payout_destination").
+	Field string `json:"field"`
+
+	// Status is the field's state (for example "currently_due").
+	Status string `json:"status"`
+
+	// RestrictsCapabilities names the capabilities held up by this field.
+	RestrictsCapabilities []string `json:"restricts_capabilities"`
+
+	// Resolution tells how the field is satisfied ("api" or a hosted flow).
+	Resolution *string `json:"resolution"`
+
+	// Deadline is when the field is due. Null when none is set.
+	Deadline *time.Time `json:"deadline"`
+
+	// Errors on this entry, written for display to the account holder.
 	Errors []RequirementError `json:"errors"`
 }
 
@@ -679,7 +724,7 @@ func (s *ConnectedAccountService) Create(ctx context.Context, req CreateConnecte
 // extra lookup; list items leave both null.
 func (s *ConnectedAccountService) Get(ctx context.Context, connectedAccountID string) (*ConnectedAccount, *ResponseMeta, error) {
 	var out ConnectedAccount
-	meta, err := s.request(ctx, http.MethodGet, "/connected-accounts/"+url.PathEscape(connectedAccountID), nil, &out)
+	meta, err := s.request(ctx, http.MethodGet, "/accounts/"+url.PathEscape(connectedAccountID), nil, &out)
 	if err != nil {
 		return nil, meta, err
 	}
@@ -690,7 +735,7 @@ func (s *ConnectedAccountService) Get(ctx context.Context, connectedAccountID st
 // Capabilities or Requirements; read a single account for those.
 func (s *ConnectedAccountService) List(ctx context.Context, params ListParams) (*Page[ConnectedAccount], *ResponseMeta, error) {
 	var env pageEnvelope[ConnectedAccount]
-	meta, err := s.request(ctx, http.MethodGet, queryPath("/organizations/connected-accounts", params), nil, &env)
+	meta, err := s.request(ctx, http.MethodGet, queryPath("/accounts", params), nil, &env)
 	if err != nil {
 		return nil, meta, err
 	}
@@ -728,7 +773,7 @@ func (s *ConnectedAccountService) CreateAccountLink(ctx context.Context, connect
 // including ones it has never requested.
 func (s *ConnectedAccountService) ListCapabilities(ctx context.Context, connectedAccountID string) (*ConnectedAccountCapabilities, *ResponseMeta, error) {
 	var out ConnectedAccountCapabilities
-	meta, err := s.request(ctx, http.MethodGet, "/connected-accounts/"+url.PathEscape(connectedAccountID)+"/capabilities", nil, &out)
+	meta, err := s.request(ctx, http.MethodGet, "/accounts/"+url.PathEscape(connectedAccountID)+"/capabilities", nil, &out)
 	if err != nil {
 		return nil, meta, err
 	}

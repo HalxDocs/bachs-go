@@ -442,6 +442,16 @@ func (s *PayoutService) ListDestinations(ctx context.Context) (*PayoutDestinatio
 	return &out, meta, nil
 }
 
+// GetDestination returns a single payout destination by ID.
+func (s *PayoutService) GetDestination(ctx context.Context, destinationID string) (*PayoutDestination, *ResponseMeta, error) {
+	var out PayoutDestination
+	meta, err := s.request(ctx, http.MethodGet, "/payouts/destinations/"+url.PathEscape(destinationID), nil, &out)
+	if err != nil {
+		return nil, meta, err
+	}
+	return &out, meta, nil
+}
+
 // CreateDestination adds a payout destination (bank account, mobile money, or
 // crypto wallet) where you can withdraw funds.
 func (s *PayoutService) CreateDestination(ctx context.Context, req CreatePayoutDestinationRequest, opts ...RequestOption) (*PayoutDestination, *ResponseMeta, error) {

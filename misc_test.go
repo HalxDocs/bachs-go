@@ -14,14 +14,14 @@ func TestGetBalances(t *testing.T) {
 		if r.Method != http.MethodGet {
 			t.Errorf("method = %s, want GET", r.Method)
 		}
-		if r.URL.Path != "/v1/accounts/balances" {
-			t.Errorf("path = %q, want /v1/accounts/balances", r.URL.Path)
+		if r.URL.Path != "/v1/balances" {
+			t.Errorf("path = %q, want /v1/balances", r.URL.Path)
 		}
 		io.WriteString(w, `{
 			"account_id": "org_2bdb10644eba4ec488b7e87405597e43",
 			"balances": [
-				{"currency": "NGN", "available_balance": "58700.00", "pending_balance": "0.00"},
-				{"currency": "USD", "available_balance": "95178.20", "pending_balance": "0.00"}
+				{"currency": "NGN", "available_balance": "58700.00", "pending_balance": "0.00", "held_for_disputes": "0.00"},
+				{"currency": "USD", "available_balance": "95178.20", "pending_balance": "0.00", "held_for_disputes": "0.00"}
 			],
 			"total_balance_usd": "95221.29",
 			"pending_settlements_by_day": []
@@ -42,6 +42,9 @@ func TestGetBalances(t *testing.T) {
 	first := balances.Balances[0]
 	if first.Currency != "NGN" || first.AvailableBalance != "58700.00" || first.PendingBalance != "0.00" {
 		t.Errorf("Balances[0] = %+v", first)
+	}
+	if first.HeldForDisputes == nil || *first.HeldForDisputes != "0.00" {
+		t.Errorf("HeldForDisputes = %v, want 0.00", first.HeldForDisputes)
 	}
 	if balances.TotalBalanceUSD != "95221.29" {
 		t.Errorf("TotalBalanceUSD = %q, want 95221.29", balances.TotalBalanceUSD)

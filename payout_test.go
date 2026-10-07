@@ -133,6 +133,43 @@ func TestListDestinations(t *testing.T) {
 	}
 }
 
+func TestGetDestination(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("method = %s, want GET", r.Method)
+		}
+		if r.URL.Path != "/v1/payouts/destinations/dest_1a2b3c4d5e6f" {
+			t.Errorf("path = %q, want /v1/payouts/destinations/dest_1a2b3c4d5e6f", r.URL.Path)
+		}
+		io.WriteString(w, `{
+			"id": "dest_1a2b3c4d5e6f",
+			"organization_id": "org_abc123",
+			"env": "live",
+			"destination_type": "bank_account",
+			"currency": "NGN",
+			"label": "My GTBank Savings",
+			"account_number": "0123456789",
+			"account_name": "JOHN DOE",
+			"bank_code": "058",
+			"bank_name": "Guaranty Trust Bank",
+			"is_active": true,
+			"created_at": "2026-01-24T14:30:00.000Z",
+			"updated_at": "2026-01-24T14:30:00.000Z"
+		}`)
+	})
+
+	d, _, err := c.Payouts.GetDestination(context.Background(), "dest_1a2b3c4d5e6f")
+	if err != nil {
+		t.Fatalf("GetDestination returned error: %v", err)
+	}
+	if d.ID != "dest_1a2b3c4d5e6f" || d.DestinationType != "bank_account" {
+		t.Errorf("destination = %+v", d)
+	}
+	if d.BankCode == nil || *d.BankCode != "058" {
+		t.Errorf("BankCode = %v", d.BankCode)
+	}
+}
+
 func TestCreateDestination(t *testing.T) {
 	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

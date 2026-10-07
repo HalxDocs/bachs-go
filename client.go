@@ -142,6 +142,28 @@ type Client struct {
 	// Webhooks provides the webhook management API: registering delivery
 	// endpoints, monitoring delivery metrics, and replaying events.
 	Webhooks *WebhookService
+
+	// Persons provides the persons subresource of a Connect account: the
+	// representative, owners, and directors who carry its identity.
+	Persons *PersonService
+
+	// PlatformFees provides methods for reading your platform's cut of
+	// Connect sales.
+	PlatformFees *PlatformFeeService
+
+	// Reference provides account-independent lookup data: banks, mobile
+	// money operators, business structures, product categories, and
+	// bank-account resolution.
+	Reference *ReferenceService
+
+	// ProductGroups provides methods for managing named sets of products
+	// sold together.
+	ProductGroups *ProductGroupService
+
+	// VirtualAccounts provides the virtual accounts API: issuing a fixed
+	// bank account number per currency and reading it back. Deposits into
+	// the number arrive as payments via the collection.succeeded webhook.
+	VirtualAccounts *VirtualAccountService
 }
 
 // NewClient returns a Bachs API client authenticated with apiKey.
@@ -183,6 +205,11 @@ func NewClient(apiKey string, opts ...Option) (*Client, error) {
 	c.Conversions = &ConversionService{service{request: c.do}}
 	c.Organizations = &OrganizationService{service{request: c.do}}
 	c.Webhooks = &WebhookService{service{request: c.do}}
+	c.Persons = &PersonService{service{request: c.do}}
+	c.PlatformFees = &PlatformFeeService{service{request: c.do}}
+	c.Reference = &ReferenceService{service{request: c.do}}
+	c.ProductGroups = &ProductGroupService{service{request: c.do}}
+	c.VirtualAccounts = &VirtualAccountService{service{request: c.do}}
 
 	return c, nil
 }

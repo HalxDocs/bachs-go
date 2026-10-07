@@ -108,7 +108,7 @@ func TestConnectedAccountCreate(t *testing.T) {
 }
 
 func TestConnectedAccountGet(t *testing.T) {
-	c := accountServer(t, http.MethodGet, "/v1/connected-accounts/org_4d81fa9c2b6e0357", connectedAccountExample)
+	c := accountServer(t, http.MethodGet, "/v1/accounts/org_4d81fa9c2b6e0357", connectedAccountExample)
 
 	acct, _, err := c.ConnectedAccounts.Get(context.Background(), "org_4d81fa9c2b6e0357")
 	if err != nil {
@@ -119,8 +119,65 @@ func TestConnectedAccountGet(t *testing.T) {
 	}
 }
 
+// TestConnectedAccountGetRequirementsEntries decodes the live requirements
+// shape observed on the sandbox: buckets plus an entries array with the
+// field, its state, and the capabilities it holds up.
+func TestConnectedAccountGetRequirementsEntries(t *testing.T) {
+	c := accountServer(t, http.MethodGet, "/v1/accounts/acct_1", `{
+		"id": "acct_1",
+		"owner_user_id": "usr_1",
+		"fee_handling": "customer_pays_fee",
+		"adaptive_pricing": false,
+		"balance_currencies": ["NGN"],
+		"enabled_capabilities": ["payouts"],
+		"is_active": true,
+		"created_at": "2026-08-07T09:12:44.000Z",
+		"updated_at": "2026-08-07T09:12:44.000Z",
+		"requirements": {
+			"currently_due": ["persons.name", "payout_destination"],
+			"eventually_due": [],
+			"past_due": [],
+			"pending_verification": [],
+			"errors": [],
+			"current_deadline": null,
+			"entries": [
+				{
+					"field": "persons.name",
+					"status": "currently_due",
+					"restricts_capabilities": ["payouts", "transfers"],
+					"errors": [],
+					"resolution": "api",
+					"deadline": null
+				}
+			]
+		}
+	}`)
+
+	acct, _, err := c.ConnectedAccounts.Get(context.Background(), "acct_1")
+	if err != nil {
+		t.Fatalf("Get returned error: %v", err)
+	}
+	reqs := acct.Requirements
+	if reqs == nil {
+		t.Fatal("Requirements is nil")
+	}
+	if len(reqs.CurrentlyDue) != 2 {
+		t.Errorf("CurrentlyDue = %v", reqs.CurrentlyDue)
+	}
+	if len(reqs.Entries) != 1 {
+		t.Fatalf("Entries = %+v", reqs.Entries)
+	}
+	entry := reqs.Entries[0]
+	if entry.Field != "persons.name" || entry.Status != "currently_due" {
+		t.Errorf("Entry = %+v", entry)
+	}
+	if len(entry.RestrictsCapabilities) != 2 {
+		t.Errorf("RestrictsCapabilities = %v", entry.RestrictsCapabilities)
+	}
+}
+
 func TestConnectedAccountList(t *testing.T) {
-	c := accountServer(t, http.MethodGet, "/v1/organizations/connected-accounts", `{
+	c := accountServer(t, http.MethodGet, "/v1/accounts", `{
 		"items": [`+connectedAccountExample+`],
 		"total": 1,
 		"limit": 20,
@@ -189,7 +246,7 @@ func TestConnectedAccountCreateAccountLink(t *testing.T) {
 // TestConnectedAccountListCapabilities uses the exact example from
 // https://docs.bachs.io/api-reference/connected-accounts/list-capabilities
 func TestConnectedAccountListCapabilities(t *testing.T) {
-	c := accountServer(t, http.MethodGet, "/v1/connected-accounts/org_4d81fa9c2b6e0357/capabilities", `{
+	c := accountServer(t, http.MethodGet, "/v1/accounts/org_4d81fa9c2b6e0357/capabilities", `{
 		"items": [
 			{"name": "payouts", "status": "active", "requested": true, "status_details": null},
 			{

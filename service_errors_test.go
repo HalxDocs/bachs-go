@@ -17,7 +17,7 @@ type errorCall func(c *Client) (*ResponseMeta, error)
 // response, every service method surfaces it as an *APIError carrying the
 // request ID, with the ResponseMeta still populated. This exercises the
 // `if err != nil { return nil, meta, err }` branch of every method, which
-// the happy-path tests skip. The table covers all 16 services and every
+// the happy-path tests skip. The table covers all 21 services and every
 // method on each, including the Create/List/Update variants that are
 // byte-identical copies of the pattern proven per service.
 func TestServiceErrorBranches(t *testing.T) {
@@ -266,6 +266,14 @@ func TestServiceErrorBranches(t *testing.T) {
 			_, meta, err := c.Misc.ListPayoutSupportedCurrencies(ctx)
 			return meta, err
 		}},
+		{"Misc.GetBalanceSettings", func(c *Client) (*ResponseMeta, error) {
+			_, meta, err := c.Misc.GetBalanceSettings(ctx)
+			return meta, err
+		}},
+		{"Misc.UpdateBalanceSettings", func(c *Client) (*ResponseMeta, error) {
+			_, meta, err := c.Misc.UpdateBalanceSettings(ctx, UpdateBalanceSettingsRequest{})
+			return meta, err
+		}},
 
 		// Payouts.
 		{"Payouts.GetSupportedCurrencies", func(c *Client) (*ResponseMeta, error) {
@@ -278,6 +286,10 @@ func TestServiceErrorBranches(t *testing.T) {
 		}},
 		{"Payouts.ListDestinations", func(c *Client) (*ResponseMeta, error) {
 			_, meta, err := c.Payouts.ListDestinations(ctx)
+			return meta, err
+		}},
+		{"Payouts.GetDestination", func(c *Client) (*ResponseMeta, error) {
+			_, meta, err := c.Payouts.GetDestination(ctx, "pdst_1")
 			return meta, err
 		}},
 		{"Payouts.CreateDestination", func(c *Client) (*ResponseMeta, error) {
@@ -427,6 +439,94 @@ func TestServiceErrorBranches(t *testing.T) {
 		{"Webhooks.Replay", func(c *Client) (*ResponseMeta, error) {
 			_, meta, err := c.Webhooks.Replay(ctx, ReplayWebhookEventRequest{})
 			return meta, err
+		}},
+
+		// Persons.
+		{"Persons.List", func(c *Client) (*ResponseMeta, error) {
+			_, meta, err := c.Persons.List(ctx, "acct_1", ListParams{})
+			return meta, err
+		}},
+		{"Persons.Create", func(c *Client) (*ResponseMeta, error) {
+			_, meta, err := c.Persons.Create(ctx, "acct_1", CreatePersonRequest{})
+			return meta, err
+		}},
+		{"Persons.Get", func(c *Client) (*ResponseMeta, error) {
+			_, meta, err := c.Persons.Get(ctx, "acct_1", "per_1")
+			return meta, err
+		}},
+		{"Persons.Update", func(c *Client) (*ResponseMeta, error) {
+			_, meta, err := c.Persons.Update(ctx, "acct_1", "per_1", UpdatePersonRequest{})
+			return meta, err
+		}},
+		{"Persons.AttachDocument", func(c *Client) (*ResponseMeta, error) {
+			_, meta, err := c.Persons.AttachDocument(ctx, "acct_1", "per_1", AttachPersonDocumentRequest{})
+			return meta, err
+		}},
+		{"Persons.Delete", func(c *Client) (*ResponseMeta, error) {
+			return c.Persons.Delete(ctx, "acct_1", "per_1")
+		}},
+
+		// Platform fees.
+		{"PlatformFees.List", func(c *Client) (*ResponseMeta, error) {
+			_, meta, err := c.PlatformFees.List(ctx, ListParams{})
+			return meta, err
+		}},
+		{"PlatformFees.Get", func(c *Client) (*ResponseMeta, error) {
+			_, meta, err := c.PlatformFees.Get(ctx, "pf_1")
+			return meta, err
+		}},
+
+		// Virtual accounts.
+		{"VirtualAccounts.Create", func(c *Client) (*ResponseMeta, error) {
+			_, meta, err := c.VirtualAccounts.Create(ctx, CreateVirtualAccountRequest{Currency: "NGN"})
+			return meta, err
+		}},
+		{"VirtualAccounts.Get", func(c *Client) (*ResponseMeta, error) {
+			_, meta, err := c.VirtualAccounts.Get(ctx, "NGN")
+			return meta, err
+		}},
+
+		// Reference.
+		{"Reference.ListBanks", func(c *Client) (*ResponseMeta, error) {
+			_, meta, err := c.Reference.ListBanks(ctx, "NG")
+			return meta, err
+		}},
+		{"Reference.ListMobileMoneyProviders", func(c *Client) (*ResponseMeta, error) {
+			_, meta, err := c.Reference.ListMobileMoneyProviders(ctx, "GH")
+			return meta, err
+		}},
+		{"Reference.ListBusinessStructures", func(c *Client) (*ResponseMeta, error) {
+			_, meta, err := c.Reference.ListBusinessStructures(ctx)
+			return meta, err
+		}},
+		{"Reference.ListProductCategories", func(c *Client) (*ResponseMeta, error) {
+			_, meta, err := c.Reference.ListProductCategories(ctx)
+			return meta, err
+		}},
+		{"Reference.ResolveBankAccount", func(c *Client) (*ResponseMeta, error) {
+			_, meta, err := c.Reference.ResolveBankAccount(ctx, "058", "0123456789")
+			return meta, err
+		}},
+
+		// Product groups.
+		{"ProductGroups.Create", func(c *Client) (*ResponseMeta, error) {
+			_, meta, err := c.ProductGroups.Create(ctx, CreateProductGroupRequest{})
+			return meta, err
+		}},
+		{"ProductGroups.List", func(c *Client) (*ResponseMeta, error) {
+			_, meta, err := c.ProductGroups.List(ctx, ListParams{})
+			return meta, err
+		}},
+		{"ProductGroups.Get", func(c *Client) (*ResponseMeta, error) {
+			_, meta, err := c.ProductGroups.Get(ctx, "pgrp_1")
+			return meta, err
+		}},
+		{"ProductGroups.Update", func(c *Client) (*ResponseMeta, error) {
+			_, meta, err := c.ProductGroups.Update(ctx, "pgrp_1", UpdateProductGroupRequest{})
+			return meta, err
+		}},
+		{"ProductGroups.Delete", func(c *Client) (*ResponseMeta, error) {
+			return c.ProductGroups.Delete(ctx, "pgrp_1")
 		}},
 	}
 

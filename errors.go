@@ -7,6 +7,50 @@ import (
 	"net/http"
 )
 
+// Error codes for checkouts that can offer no payment method. Branch on
+// these rather than on Detail, which is human-readable and may change.
+// Source: the Week of Sep 7, 2026 entry in
+// https://docs.bachs.io/changelog/api and
+// https://docs.bachs.io/guides/payments/payment-method-support#why-a-checkout-has-no-payment-method.
+const (
+	// ErrCodeCheckoutHasNoPaymentMethod fires when the account has no
+	// payment method configured at all. Before the Week of Sep 7, 2026
+	// release it also covered the two cases below.
+	ErrCodeCheckoutHasNoPaymentMethod = "CHECKOUT_HAS_NO_PAYMENT_METHOD"
+
+	// ErrCodeAccountNotActivated fires when a live checkout can offer no
+	// payment method because the account is not live yet. Sandbox is
+	// unaffected: every method is available there.
+	ErrCodeAccountNotActivated = "ACCOUNT_NOT_ACTIVATED"
+
+	// ErrCodeAccountPaymentMethodsRestricted fires when a live checkout can
+	// offer no payment method because the account's methods have been
+	// restricted.
+	ErrCodeAccountPaymentMethodsRestricted = "ACCOUNT_PAYMENT_METHODS_RESTRICTED"
+
+	// ErrCodeCheckoutRestrictionLeavesNoPaymentMethod fires when a checkout's
+	// own payment-method restriction leaves nothing payable.
+	ErrCodeCheckoutRestrictionLeavesNoPaymentMethod = "CHECKOUT_RESTRICTION_LEAVES_NO_PAYMENT_METHOD"
+
+	// ErrCodePaymentMethodNotAllowed fires when a payment names a method or
+	// currency the checkout's payment_method_options restriction excluded.
+	// The restriction is enforced when the payment is priced and confirmed,
+	// not only on the hosted page.
+	ErrCodePaymentMethodNotAllowed = "PAYMENT_METHOD_NOT_ALLOWED"
+
+	// ErrCodeInvalidPlatformFee fires when a Connect split breaks the
+	// platform-fee bounds: a non-positive fee or share, a fee or share at
+	// or above the gross amount, a destination charge with neither term, or
+	// a value that rounds to zero at the currency's precision.
+	ErrCodeInvalidPlatformFee = "INVALID_PLATFORM_FEE"
+
+	// ErrCodeContradictoryChargeType fires when a checkout create sends both
+	// X-Account-Id and transfer_data. The header alone makes the sale the
+	// account's; naming a destination makes it the platform's; a request
+	// cannot be both at once.
+	ErrCodeContradictoryChargeType = "CONTRADICTORY_CHARGE_TYPE"
+)
+
 // apiErrorBody is the wire shape of a Bachs error response. Source:
 // https://docs.bachs.io/errors
 type apiErrorBody struct {

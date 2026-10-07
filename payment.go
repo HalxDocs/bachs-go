@@ -57,8 +57,19 @@ type Payment struct {
 	// cost.
 	MerchantBearsCost *bool `json:"merchant_bears_cost"`
 
-	// PaymentMethod used for this payment.
+	// PaymentMethod used for this payment. For a virtual account deposit this
+	// reports the rail used (for example "NGN_BANK_TRANSFER"); a card
+	// payment reports "USD_CARD" or "NGN_CARD".
 	PaymentMethod *string `json:"payment_method"`
+
+	// PaymentMethodDetails carries payer details for methods that provide
+	// them, for example the sender of a bank transfer. Null on payments
+	// taken before this shipped, on methods that provide no payer details,
+	// and on the payment list response (it is returned by Payments.Get and
+	// sent on collection.succeeded only). Use it to distinguish deposits
+	// into the same virtual account. Source: the Week of Sep 21, 2026 entry
+	// in https://docs.bachs.io/changelog/api.
+	PaymentMethodDetails *PaymentMethodDetails `json:"payment_method_details"`
 
 	// Channel is the origin channel (for example "api").
 	Channel *string `json:"channel"`
@@ -90,6 +101,14 @@ type Payment struct {
 	// none exist.
 	Refunds []string `json:"refunds"`
 
+	// PlatformFee echoes the fee-first split sent at creation. Null when
+	// the sale carries no split — or when it was share-first.
+	PlatformFee *string `json:"platform_fee"`
+
+	// DestinationAmount echoes the share-first split sent at creation. Null
+	// when the sale carries no split — or when it was fee-first.
+	DestinationAmount *string `json:"destination_amount"`
+
 	// StatusHistory is the chronological list of status changes.
 	StatusHistory []PaymentStatusHistory `json:"status_history"`
 
@@ -101,6 +120,59 @@ type Payment struct {
 
 	// CompletedAt is when the payment reached a successful terminal state.
 	CompletedAt *time.Time `json:"completed_at"`
+}
+
+// PaymentMethodDetails carries payer details for the method a payment used.
+// It is null when the method provides no payer details.
+type PaymentMethodDetails struct {
+	// Type is the method the details describe (for example
+	// "bank_transfer").
+	Type string `json:"type"`
+
+	// BankTransfer holds the sender details for a bank transfer payment.
+	// Null for other methods.
+	BankTransfer *PaymentBankTransferDetails `json:"bank_transfer,omitempty"`
+}
+
+// PaymentBankTransferDetails names the sender of a bank transfer payment:
+// the sender's name, bank, and account number, the interbank session ID, and
+// the account number that received the money.
+type PaymentBankTransferDetails struct {
+	// SenderName of the payer, as reported by the sending bank.
+	SenderName *string `json:"sender_name"`
+
+	// SenderBank of the payer, as reported by the sending bank.
+	SenderBank *string `json:"sender_bank"`
+
+	// SenderAccountNumber of the payer, as reported by the sending bank.
+	SenderAccountNumber *string `json:"sender_account_number"`
+
+	// SessionID is the interbank session ID of the transfer.
+	SessionID *string `json:"session_id"`
+
+	// VirtualAccount is the account number that received the money, when the
+	// deposit landed in a virtual account.
+	VirtualAccount *PaymentVirtualAccountRef `json:"virtual_account"`
+}
+
+// PaymentVirtualAccountRef identifies the virtual account that received a
+// bank transfer deposit.
+type PaymentVirtualAccountRef struct {
+	// ID of the virtual account (for example "va_...").
+	ID string `json:"id"`
+
+	// AccountNumber that received the money.
+	AccountNumber string `json:"account_number"`
+
+	// BankName holding the number.
+	BankName string `json:"bank_name"`
+
+	// Type of the virtual account (for example "permanent").
+	Type *string `json:"type"`
+
+	// ExpiresAt is when the number stops working. Null for a permanent
+	// (fixed) virtual account.
+	ExpiresAt *time.Time `json:"expires_at"`
 }
 
 // PaymentCustomer is the customer information attached to a payment.

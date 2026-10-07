@@ -62,7 +62,7 @@ type UpdateCheckoutSettingsRequest struct {
 // active connect capability before creating connected accounts.
 func (s *OrganizationService) GetMe(ctx context.Context) (*Organization, *ResponseMeta, error) {
 	var out ConnectedAccount
-	meta, err := s.request(ctx, http.MethodGet, "/organizations/me", nil, &out)
+	meta, err := s.request(ctx, http.MethodGet, "/accounts/me", nil, &out)
 	if err != nil {
 		return nil, meta, err
 	}
@@ -75,7 +75,7 @@ func (s *OrganizationService) GetMe(ctx context.Context) (*Organization, *Respon
 // the capabilities and requirements blocks.
 func (s *OrganizationService) Get(ctx context.Context, organizationID string) (*Organization, *ResponseMeta, error) {
 	var out ConnectedAccount
-	meta, err := s.request(ctx, http.MethodGet, "/organizations/"+url.PathEscape(organizationID), nil, &out)
+	meta, err := s.request(ctx, http.MethodGet, "/accounts/"+url.PathEscape(organizationID), nil, &out)
 	if err != nil {
 		return nil, meta, err
 	}
@@ -88,7 +88,7 @@ func (s *OrganizationService) Get(ctx context.Context, organizationID string) (*
 // account's context.
 func (s *OrganizationService) GetCheckoutSettings(ctx context.Context, opts ...RequestOption) (*CheckoutSettings, *ResponseMeta, error) {
 	var out CheckoutSettings
-	meta, err := s.request(ctx, http.MethodGet, "/organizations/checkout/settings", nil, &out, opts...)
+	meta, err := s.request(ctx, http.MethodGet, "/accounts/checkout/settings", nil, &out, opts...)
 	if err != nil {
 		return nil, meta, err
 	}
@@ -100,7 +100,7 @@ func (s *OrganizationService) GetCheckoutSettings(ctx context.Context, opts ...R
 // WithConnectedAccount to update a connected account's context.
 func (s *OrganizationService) UpdateCheckoutSettings(ctx context.Context, req UpdateCheckoutSettingsRequest, opts ...RequestOption) (*CheckoutSettings, *ResponseMeta, error) {
 	var out CheckoutSettings
-	meta, err := s.request(ctx, http.MethodPut, "/organizations/checkout/settings", req, &out, opts...)
+	meta, err := s.request(ctx, http.MethodPut, "/accounts/checkout/settings", req, &out, opts...)
 	if err != nil {
 		return nil, meta, err
 	}

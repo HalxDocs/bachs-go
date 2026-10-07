@@ -44,6 +44,9 @@ const (
 	EventTypeInvoiceCreated              = "invoice.created"
 	EventTypeInvoicePaid                 = "invoice.paid"
 	EventTypeInvoicePaymentFailed        = "invoice.payment_failed"
+	EventTypeAccountUpdated              = "account.updated"
+	EventTypeCapabilityUpdated           = "capability.updated"
+	EventTypeTransferCreated             = "transfer.created"
 )
 
 // WebhookEndpoint is a URL Bachs delivers events to, together with the set of

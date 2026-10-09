@@ -4,13 +4,38 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [v1.4.0] - 2026-10-09
 
 ### Fixed
 
-- `Webhooks.ListEndpoints` decodes the `items`/`pagination` envelope and
-  returns `*Page[WebhookEndpoint]` (it previously declared a flat array
-  and failed on every call).
+- `ConnectedAccounts.Create`, `RequestCapabilities`, and
+  `CreateAccountLink` call the live `/v1/accounts…` paths (the old
+  `/organizations` and `/connected-accounts` paths 404).
+- Removed `AllowedPaymentMethodTypes`, whose
+  `allowed_payment_method_types` field the API silently ignores. Use
+  `PaymentMethodTypes` (exact corridors) or `PaymentMethodOptions`.
+
+### Changed
+
+- **Breaking:** `Webhooks.ListEndpoints` takes `ListParams` and returns
+  `*Page[WebhookEndpoint]` — the API sends an `items`/`pagination`
+  envelope the old flat-slice declaration could never decode.
+- **Breaking:** Connect request structs follow the live API shape:
+  `CreateConnectedAccountRequest` and `UpdateConnectedAccountRequest`
+  carry persona-nested `configuration` (plus `responsibilities` on
+  create) instead of the top-level `capabilities` map and `controller`.
+  New `AccountPersona*`, `AccountEntity*`, and `FeeCollector*`
+  constants. The old shapes never reached a live endpoint.
+
+### Added
+
+- `CreateCheckoutSessionResponse` carries `mode`, `currency`, `amount`,
+  the rich `recurring` block, `save_payment_method`, and
+  `client_secret`, so a subscription checkout is recognizable without a
+  follow-up `Get`.
+- Typed webhook payloads: `CollectionSucceededData` and
+  `CustomerSubscriptionData` in the `webhook` package, plus an
+  `Event.DataAs` helper. The envelope's `Data` raw message is unchanged.
 
 ## [v1.3.0] - 2026-10-07
 

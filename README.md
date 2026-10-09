@@ -33,7 +33,9 @@ import "github.com/HalxDocs/bachs-go"
   POST-only, and the API key never appears in errors or logs.
 - **Webhook verification** — a standalone `webhook` package with
   HMAC-SHA256 signature checking, constant-time comparison, and timestamp
-  tolerance, with no HTTP dependency.
+  tolerance, with no HTTP dependency. `CollectionSucceededData` and
+  `CustomerSubscriptionData` decode event payloads into typed structs via
+  `Event.DataAs`.
 - **Offline API reference** — `scripts/gen-docs.sh` renders a static,
   pkg.go.dev-style reference site from the doc comments.
 

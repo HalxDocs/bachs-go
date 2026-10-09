@@ -173,11 +173,6 @@ type CreateCheckoutSessionRequest struct {
 	// defaults to the product pricing currency when omitted.
 	BillingCurrency string `json:"billing_currency,omitempty"`
 
-	// AllowedPaymentMethodTypes coarsely restricts which payment methods the
-	// customer may use: "card", "crypto", "bank_transfer", "mobile_money".
-	// For per-method currency control, use PaymentMethodOptions instead.
-	AllowedPaymentMethodTypes []string `json:"allowed_payment_method_types,omitempty"`
-
 	// PaymentMethodOptions finely restricts which payment methods a checkout
 	// offers, and which currencies each one is offered in. Keys are "card",
 	// "bank_transfer", "mobile_money", and "crypto". A method left out is

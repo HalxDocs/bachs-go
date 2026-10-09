@@ -442,3 +442,52 @@ func TestCheckoutCreateSendsPaymentMethodTypes(t *testing.T) {
 		t.Fatalf("Create returned error: %v", err)
 	}
 }
+
+// TestCheckoutCreateSubscriptionMode decodes the live create response for a
+// recurring checkout: mode, currency, amount, the rich recurring block, and
+// save_payment_method — no follow-up Get needed to tell it apart from a
+// one-off charge.
+func TestCheckoutCreateSubscriptionMode(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{
+			"checkout_id": "chk_sub_1",
+			"mode": "subscription",
+			"save_payment_method": true,
+			"recurring": {"interval": "month", "interval_count": 1, "amount": "7.00", "trial_interval": null, "trial_interval_count": null},
+			"status": "open",
+			"amount": "7.00",
+			"currency": "USD",
+			"checkout_url": "https://sandbox-checkout.bachs.io/c/xyz",
+			"client_secret": null,
+			"expires_at": "2026-10-07T15:43:35Z",
+			"created_at": "2026-10-07T14:43:35Z"
+		}`)
+	})
+
+	session, _, err := c.Checkouts.Create(context.Background(), CreateCheckoutSessionRequest{
+		Customer:    &CheckoutCustomer{Email: "jane@example.com"},
+		ProductCart: []ProductItemRequest{{ProductID: "prod_sub"}},
+		SuccessURL:  "https://example.com/thanks",
+	})
+	if err != nil {
+		t.Fatalf("Create returned error: %v", err)
+	}
+	if session.Mode != "subscription" {
+		t.Errorf("Mode = %q, want subscription", session.Mode)
+	}
+	if session.Amount != "7.00" || session.Currency != "USD" {
+		t.Errorf("Amount/Currency = %s/%s, want 7.00/USD", session.Amount, session.Currency)
+	}
+	if !session.SavePaymentMethod {
+		t.Error("SavePaymentMethod is false, want true on a subscription checkout")
+	}
+	if session.Recurring == nil {
+		t.Fatal("Recurring is nil, want the billing cadence")
+	}
+	if session.Recurring.Interval != "month" || session.Recurring.IntervalCount != 1 {
+		t.Errorf("Recurring = %+v", session.Recurring)
+	}
+	if session.Recurring.Amount == nil || *session.Recurring.Amount != "7.00" {
+		t.Errorf("Recurring.Amount = %v", session.Recurring.Amount)
+	}
+}

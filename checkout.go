@@ -248,7 +248,9 @@ type CreateCheckoutSessionRequest struct {
 }
 
 // CreateCheckoutSessionResponse is the result of Checkouts.Create: the
-// session identifiers and the hosted checkout URL.
+// session identifiers, the hosted checkout URL, and what the session will
+// collect — including its mode, so a subscription checkout is recognizable
+// without a follow-up Get.
 type CreateCheckoutSessionResponse struct {
 	// CheckoutID uniquely identifies the underlying checkout.
 	CheckoutID string `json:"checkout_id"`
@@ -260,6 +262,28 @@ type CreateCheckoutSessionResponse struct {
 	// Status is "OPEN", "COMPLETED", "EXPIRED", or "CANCELLED". New sessions
 	// start in "OPEN".
 	Status string `json:"status"`
+
+	// Mode is what the session collects: "payment" for a one-time charge,
+	// "subscription" for a recurring checkout.
+	Mode string `json:"mode"`
+
+	// Currency is the base currency code.
+	Currency string `json:"currency"`
+
+	// Amount is the total amount in Currency.
+	Amount string `json:"amount"`
+
+	// Recurring describes the billing cadence. Present only for a
+	// subscription checkout; null for a one-time checkout.
+	Recurring *CheckoutRecurring `json:"recurring"`
+
+	// SavePaymentMethod reports whether the payment method is kept for
+	// future charges. Always true on a subscription checkout.
+	SavePaymentMethod bool `json:"save_payment_method"`
+
+	// ClientSecret is the secret for client-side confirmation flows. Null
+	// on hosted checkouts.
+	ClientSecret *string `json:"client_secret"`
 
 	// ExpiresAt is when the checkout URL stops working.
 	ExpiresAt time.Time `json:"expires_at"`
@@ -371,6 +395,16 @@ type CheckoutRecurring struct {
 
 	// IntervalCount is the number of intervals per billing cycle.
 	IntervalCount int `json:"interval_count"`
+
+	// Amount is the recurring amount, present on the create response.
+	Amount *string `json:"amount,omitempty"`
+
+	// TrialInterval is the trial unit ("day", "week", "month", or "year"),
+	// present when the checkout carries a trial.
+	TrialInterval *string `json:"trial_interval"`
+
+	// TrialIntervalCount is the number of trial units.
+	TrialIntervalCount *int `json:"trial_interval_count"`
 }
 
 // CheckoutCustomerDetails is the buyer identity collected on a checkout

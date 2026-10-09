@@ -344,273 +344,50 @@ func TestConnectedAccountListCapabilities(t *testing.T) {
 
 // TestConnectedAccountGetTaskChecklist uses the exact example from
 // https://docs.bachs.io/api-reference/connected-accounts/get-the-task-checklist
-func TestConnectedAccountGetTaskChecklist(t *testing.T) {
-	c := accountServer(t, http.MethodGet, "/v1/connected-accounts/org_4d81fa9c2b6e0357/requirements/checklist", `{
-		"organization_id": "org_4d81fa9c2b6e0357",
-		"entity_type": "company",
-		"country": "NG",
-		"currently_due": 2,
-		"pending_review": 0,
-		"in_verification": 1,
-		"needs_attention": 1,
-		"setup_status": "incomplete",
-		"checklist": [
-			{
-				"field_key": "company.registration_number",
-				"label": "Registration number",
-				"group": "company",
-				"state": "currently_due",
-				"provided": false,
-				"error_reason": null,
-				"reference": {"type": "account", "resource": null, "label": null}
-			}
-		],
-		"capabilities": []
-	}`)
-
-	cl, _, err := c.ConnectedAccounts.GetTaskChecklist(context.Background(), "org_4d81fa9c2b6e0357")
-	if err != nil {
-		t.Fatalf("GetTaskChecklist returned error: %v", err)
-	}
-	if cl.SetupStatus != "incomplete" || cl.CurrentlyDue != 2 || cl.NeedsAttention != 1 {
-		t.Errorf("checklist = %+v", cl)
-	}
-	if len(cl.Checklist) != 1 {
-		t.Fatalf("len(Checklist) = %d, want 1", len(cl.Checklist))
-	}
-	if cl.Checklist[0].FieldKey != "company.registration_number" || cl.Checklist[0].State != "currently_due" {
-		t.Errorf("Checklist[0] = %+v", cl.Checklist[0])
-	}
-	if cl.Checklist[0].Reference == nil || cl.Checklist[0].Reference.Type != "account" {
-		t.Errorf("Checklist[0].Reference = %+v", cl.Checklist[0].Reference)
-	}
-}
-
-func TestConnectedAccountListTasks(t *testing.T) {
-	c := accountServer(t, http.MethodGet, "/v1/connected-accounts/org_1/requirements/tasks?status=open", `{
-		"total": 1,
-		"items": [
-			{
-				"id": "tsk_1",
-				"title": "Provide your registration number",
-				"description": null,
-				"type": "form_field",
-				"status": "open",
-				"field_ref": "company.registration_number",
-				"document_type": null,
-				"requirements": {},
-				"response_contract": {},
-				"due_date": null,
-				"impacts_capability": "payouts",
-				"section_key": null,
-				"past_due": false,
-				"rejection_reason": null,
-				"created_at": "2026-08-07T11:04:22.518Z",
-				"updated_at": "2026-08-07T11:04:22.518Z"
-			}
-		]
-	}`)
-
-	page, _, err := c.ConnectedAccounts.ListTasks(context.Background(), "org_1", ListParams{Status: "open"})
-	if err != nil {
-		t.Fatalf("ListTasks returned error: %v", err)
-	}
-	if len(page.Items) != 1 {
-		t.Fatalf("len(Items) = %d, want 1", len(page.Items))
-	}
-	if page.Items[0].Type != "form_field" || page.Items[0].FieldRef == nil || *page.Items[0].FieldRef != "company.registration_number" {
-		t.Errorf("Items[0] = %+v", page.Items[0])
-	}
-	if page.Pagination.Total != 1 {
-		t.Errorf("Pagination.Total = %d, want 1", page.Pagination.Total)
-	}
-}
-
-func TestConnectedAccountGetTaskValues(t *testing.T) {
-	c := accountServer(t, http.MethodGet, "/v1/connected-accounts/org_1/requirements/values", `{
-		"organization_id": "org_1",
-		"entity_type": "company",
-		"values": [
-			{
-				"field": "company.registered_name",
-				"label": "Registered name",
-				"group": "business_profile",
-				"provided": true,
-				"sensitive": false,
-				"value": "Ada Stores Ltd",
-				"display": "Ada Stores Ltd",
-				"reference_data": null
-			}
-		],
-		"persons": []
-	}`)
-
-	vals, _, err := c.ConnectedAccounts.GetTaskValues(context.Background(), "org_1")
-	if err != nil {
-		t.Fatalf("GetTaskValues returned error: %v", err)
-	}
-	if len(vals.Values) != 1 {
-		t.Fatalf("len(Values) = %d, want 1", len(vals.Values))
-	}
-	if vals.Values[0].Field != "company.registered_name" || vals.Values[0].Value != "Ada Stores Ltd" {
-		t.Errorf("Values[0] = %+v", vals.Values[0])
-	}
-	if vals.Values[0].Sensitive {
-		t.Error("Values[0].Sensitive = true, want false")
-	}
-}
-
-func TestConnectedAccountSubmitTaskValues(t *testing.T) {
-	c := accountServer(t, http.MethodPost, "/v1/connected-accounts/org_1/requirements/submit", `{
-		"organization_id": "org_1",
-		"entity_type": "company",
-		"country": "NG",
-		"currently_due": 0,
-		"pending_review": 0,
-		"in_verification": 0,
-		"needs_attention": 0,
-		"setup_status": "awaiting_review",
-		"checklist": [],
-		"capabilities": []
-	}`)
-
-	cl, _, err := c.ConnectedAccounts.SubmitTaskValues(context.Background(), "org_1", SubmitTasksRequest{
-		Fields: map[string]any{"company.registered_name": "Ada Stores Ltd"},
-	})
-	if err != nil {
-		t.Fatalf("SubmitTaskValues returned error: %v", err)
-	}
-	if cl.SetupStatus != "awaiting_review" {
-		t.Errorf("SetupStatus = %q, want awaiting_review", cl.SetupStatus)
-	}
-}
-
-func TestConnectedAccountReusableIdentity(t *testing.T) {
-	getServer := accountServer(t, http.MethodGet, "/v1/connected-accounts/org_1/requirements/reusable-identity", `{
-		"available": true,
-		"person_public_id": "per_8f3a1c9b4e72",
-		"first_name": "Ada",
-		"last_name": "Okafor",
-		"country": "NG",
-		"verification_status": "verified",
-		"used_by": ["Ada Stores", "Ada Tech"]
-	}`)
-
-	id, _, err := getServer.ConnectedAccounts.GetReusableIdentity(context.Background(), "org_1")
-	if err != nil {
-		t.Fatalf("GetReusableIdentity returned error: %v", err)
-	}
-	if !id.Available || id.PersonPublicID == nil || *id.PersonPublicID != "per_8f3a1c9b4e72" {
-		t.Errorf("identity = %+v", id)
-	}
-	if len(id.UsedBy) != 2 {
-		t.Errorf("UsedBy = %v", id.UsedBy)
-	}
-
-	applyServer := accountServer(t, http.MethodPost, "/v1/connected-accounts/org_1/requirements/reusable-identity/apply", `{
-		"applied": true,
-		"verification_status": "verified"
-	}`)
-
-	res, _, err := applyServer.ConnectedAccounts.ApplyReusableIdentity(context.Background(), "org_1", ApplyReusableIdentityRequest{
-		PersonPublicID: "per_8f3a1c9b4e72",
-	})
-	if err != nil {
-		t.Fatalf("ApplyReusableIdentity returned error: %v", err)
-	}
-	if !res.Applied || res.VerificationStatus != "verified" {
-		t.Errorf("apply result = %+v", res)
-	}
-}
-
-func TestConnectedAccountBanks(t *testing.T) {
-	c := accountServer(t, http.MethodGet, "/v1/connected-accounts/org_1/requirements/banks?country=NG", `{
-		"country": "NG",
-		"banks": [
-			{"name": "Providus Bank", "code": "PROVIDUS"},
-			{"name": "GTBank", "code": "GTB"}
-		]
-	}`)
-
-	banks, _, err := c.ConnectedAccounts.ListBanks(context.Background(), "org_1", "NG")
-	if err != nil {
-		t.Fatalf("ListBanks returned error: %v", err)
-	}
-	if banks.Country != "NG" || len(banks.Banks) != 2 {
-		t.Errorf("banks = %+v", banks)
-	}
-	if banks.Banks[0].Code != "PROVIDUS" {
-		t.Errorf("Banks[0].Code = %q", banks.Banks[0].Code)
-	}
-}
-
-func TestConnectedAccountMobileMoneyProviders(t *testing.T) {
-	c := accountServer(t, http.MethodGet, "/v1/connected-accounts/org_1/requirements/momo?country=KE", `{
-		"country": "KE",
-		"providers": ["M-PESA", "Airtel Money"]
-	}`)
-
-	list, _, err := c.ConnectedAccounts.ListMobileMoneyProviders(context.Background(), "org_1", "KE")
-	if err != nil {
-		t.Fatalf("ListMobileMoneyProviders returned error: %v", err)
-	}
-	if len(list.Providers) != 2 || list.Providers[0] != "M-PESA" {
-		t.Errorf("providers = %v", list.Providers)
-	}
-}
-
-func TestConnectedAccountResolveBankAccount(t *testing.T) {
-	c := accountServer(t, http.MethodPost, "/v1/connected-accounts/org_1/requirements/accounts/resolve", `{
-		"resolved": true,
-		"account_name": "ADA OKAFOR",
-		"account_number": "0123456789",
-		"message": null
-	}`)
-
-	res, _, err := c.ConnectedAccounts.ResolveBankAccount(context.Background(), "org_1", ResolveTaskBankAccountRequest{
-		AccountNumber: "0123456789",
-		BankCode:      "GTB",
-		Country:       stringPtr("NG"),
-	})
-	if err != nil {
-		t.Fatalf("ResolveBankAccount returned error: %v", err)
-	}
-	if !res.Resolved || res.AccountName == nil || *res.AccountName != "ADA OKAFOR" {
-		t.Errorf("resolve = %+v", res)
-	}
-	if res.Message != nil {
-		t.Errorf("Message = %v, want nil on a successful match", res.Message)
-	}
-}
-
-func TestConnectedAccountDocuments(t *testing.T) {
-	uploadServer := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+// TestConnectedAccountUpdateAccount uses the submission shape from
+// https://docs.bachs.io/connect/guides/api-onboarding: contact details,
+// capability requests, and requirement fields in one call. Only the fields
+// sent change; the request below updates the listed name.
+func TestConnectedAccountUpdateAccount(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			t.Errorf("method = %s, want POST", r.Method)
 		}
-		if r.URL.Path != "/v1/connected-accounts/org_1/uploads" {
-			t.Errorf("path = %q", r.URL.Path)
+		if r.URL.Path != "/v1/accounts/acct_1" {
+			t.Errorf("path = %q, want /v1/accounts/acct_1", r.URL.Path)
 		}
-		if ct := r.Header.Get(headerContentType); !strings.HasPrefix(ct, "multipart/form-data") {
-			t.Errorf("Content-Type = %q, want multipart/form-data", ct)
+		body, _ := io.ReadAll(r.Body)
+		var got map[string]any
+		if err := json.Unmarshal(body, &got); err != nil {
+			t.Fatalf("request body is not valid JSON: %v", err)
 		}
-		io.WriteString(w, uploadExample)
+		if got["display_name"] != "Ada Stores Renamed" {
+			t.Errorf("display_name = %v", got["display_name"])
+		}
+		if _, present := got["fields"]; present {
+			t.Errorf("fields should be absent when only updating contact details: %s", body)
+		}
+		io.WriteString(w, `{
+			"id": "acct_1",
+			"owner_user_id": "usr_1",
+			"name": "Ada Stores Renamed",
+			"fee_handling": "customer_pays_fee",
+			"adaptive_pricing": false,
+			"balance_currencies": ["NGN"],
+			"enabled_capabilities": ["payouts"],
+			"is_active": true,
+			"created_at": "2026-08-07T09:12:44.000Z",
+			"updated_at": "2026-10-09T12:00:00.000Z"
+		}`)
 	})
 
-	up, _, err := uploadServer.ConnectedAccounts.UploadDocument(context.Background(), "org_1", "id-front.jpg", strings.NewReader("jpeg-bytes"), "identity_documents")
+	acct, _, err := c.ConnectedAccounts.UpdateAccount(context.Background(), "acct_1", UpdateAccountRequest{
+		DisplayName: stringPtr("Ada Stores Renamed"),
+	})
 	if err != nil {
-		t.Fatalf("UploadDocument returned error: %v", err)
+		t.Fatalf("UpdateAccount returned error: %v", err)
 	}
-	if up.UploadID != "upl_4f3e2d1c" {
-		t.Errorf("UploadID = %q", up.UploadID)
-	}
-
-	getServer := accountServer(t, http.MethodGet, "/v1/connected-accounts/org_1/uploads/upl_4f3e2d1c", uploadExample)
-	doc, _, err := getServer.ConnectedAccounts.GetDocument(context.Background(), "org_1", "upl_4f3e2d1c")
-	if err != nil {
-		t.Fatalf("GetDocument returned error: %v", err)
-	}
-	if doc.FileName != "product-hero.png" {
-		t.Errorf("FileName = %q", doc.FileName)
+	if acct.Name == nil || *acct.Name != "Ada Stores Renamed" {
+		t.Errorf("Name = %v", acct.Name)
 	}
 }

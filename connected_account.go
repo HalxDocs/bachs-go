@@ -2,17 +2,21 @@ package bachs
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"net/url"
 	"time"
 )
 
 // ConnectedAccountService provides the Connect platform API: creating and
-// reading connected accounts, requesting capabilities, walking a connected
-// account through its onboarding Tasks, managing account documents, and
-// issuing hosted account links. Requires the connect capability on your own
-// organization. Source: https://docs.bachs.io/connect/overview
+// reading connected accounts, updating them, requesting capabilities, and
+// issuing hosted account links. Source:
+// https://docs.bachs.io/connect/overview
+//
+// Onboarding reads come from Get (requirements.entries); values are
+// submitted with UpdateAccount; reference data comes from the Reference
+// service; ID documents are uploaded with Media.Upload and attached with
+// Persons.AttachDocument. See
+// https://docs.bachs.io/connect/guides/api-onboarding.
 type ConnectedAccountService struct {
 	service
 }
@@ -412,343 +416,6 @@ type ConnectedAccountCapability struct {
 	StatusDetails []CapabilityStatusDetail `json:"status_details"`
 }
 
-// TaskChecklist is the response of ConnectedAccounts.GetTaskChecklist and
-// ConnectedAccounts.SubmitTaskValues: every field the account owes, both flat
-// and grouped by capability. Source:
-// https://docs.bachs.io/api-reference/connected-accounts/get-the-task-checklist
-type TaskChecklist struct {
-	// OrganizationID is the connected account this checklist belongs to.
-	OrganizationID string `json:"organization_id"`
-
-	// EntityType is "company" or "individual". Null until set.
-	EntityType *string `json:"entity_type"`
-
-	// Country the checklist was computed for. Null until the account has a
-	// country.
-	Country *string `json:"country"`
-
-	// CurrentlyDue is how many fields are currently due.
-	CurrentlyDue int `json:"currently_due"`
-
-	// PendingReview is how many fields are waiting on a person to decide.
-	PendingReview int `json:"pending_review"`
-
-	// InVerification is how many fields are pending verification.
-	InVerification int `json:"in_verification"`
-
-	// NeedsAttention is how many fields were rejected and must be
-	// resubmitted.
-	NeedsAttention int `json:"needs_attention"`
-
-	// SetupStatus is "incomplete", "awaiting_review", or "complete".
-	SetupStatus string `json:"setup_status"`
-
-	// Checklist is every field the account owes, deduplicated across
-	// capabilities.
-	Checklist []TaskFieldItem `json:"checklist"`
-
-	// Capabilities groups the same fields by the capability that caused them.
-	Capabilities []TaskCapabilityGroup `json:"capabilities"`
-}
-
-// TaskFieldItem is one field in a Task checklist.
-type TaskFieldItem struct {
-	// FieldKey is the canonical key to send the value back under when
-	// submitting. Nested keys are dotted.
-	FieldKey string `json:"field_key"`
-
-	// Label is a human-readable name for the field, safe to show the account
-	// holder verbatim.
-	Label string `json:"label"`
-
-	// Group names which part of the account the field belongs to (for example
-	// "identity", "representative", "company").
-	Group *string `json:"group"`
-
-	// State is "currently_due", "eventually_due", "pending_verification",
-	// "pending_review", "satisfied", or "past_due".
-	State string `json:"state"`
-
-	// Provided reports whether a value has been submitted for this field.
-	Provided bool `json:"provided"`
-
-	// ErrorReason explains why the submitted value was rejected, safe to show
-	// the account holder. Null unless the field was rejected.
-	ErrorReason *string `json:"error_reason"`
-
-	// Reference names the resource this field belongs to, for person-level
-	// fields. Null for account-level fields.
-	Reference *TaskFieldReference `json:"reference"`
-}
-
-// TaskFieldReference names the resource a Task field belongs to.
-type TaskFieldReference struct {
-	// Type is "account" or "person".
-	Type string `json:"type"`
-
-	// Resource is the identifier of the resource the Task is about.
-	Resource *string `json:"resource"`
-
-	// Label is a human-readable name for the resource.
-	Label *string `json:"label"`
-}
-
-// TaskCapabilityGroup is one capability's fields within a Task checklist.
-type TaskCapabilityGroup struct {
-	// CapabilityName is "payouts", "transfers", "conversions", or "connect".
-	CapabilityName string `json:"capability_name"`
-
-	// Description summarizes what the capability lets the account do.
-	Description *string `json:"description"`
-
-	// Category is a display grouping hint.
-	Category *string `json:"category"`
-
-	// State is "requested", "pending_review", or "enabled".
-	State string `json:"state"`
-
-	// Satisfied is true when every field the capability needs is satisfied.
-	// The account is eligible, not enabled: a person still decides.
-	Satisfied bool `json:"satisfied"`
-
-	// Fields this capability needs, in the same shape as the checklist.
-	Fields []TaskFieldItem `json:"fields"`
-}
-
-// Task is one item in a connected account's worklist: a thing the account
-// holder has to do, each with its own open-to-done lifecycle. Source:
-// https://docs.bachs.io/api-reference/connected-accounts/list-tasks
-type Task struct {
-	// ID is the unique identifier for the Task.
-	ID string `json:"id"`
-
-	// Title is a short heading, safe to show the account holder verbatim.
-	Title string `json:"title"`
-
-	// Description explains what the account holder has to do.
-	Description *string `json:"description"`
-
-	// Type is "form_field", "document", "action", or "edit_section".
-	Type string `json:"type"`
-
-	// Status is "open", "in_review", "completed", or "rejected".
-	Status string `json:"status"`
-
-	// FieldRef is the canonical field key the Task points at.
-	FieldRef *string `json:"field_ref"`
-
-	// DocumentType is which document a document Task expects.
-	DocumentType *string `json:"document_type"`
-
-	// Requirements constrain the answer. Empty on every Task returned today.
-	Requirements map[string]any `json:"requirements"`
-
-	// ResponseContract describes how the answer is shaped.
-	ResponseContract map[string]any `json:"response_contract"`
-
-	// DueDate of the Task, ISO 8601 in UTC. Null when no deadline is set.
-	DueDate *time.Time `json:"due_date"`
-
-	// ImpactsCapability is the capability paused if the Task is left unmet
-	// past its deadline. Null when nothing is on the line.
-	ImpactsCapability *string `json:"impacts_capability"`
-
-	// SectionKey is which section an edit_section Task reopens.
-	SectionKey *string `json:"section_key"`
-
-	// PastDue is true when the Task is still open or rejected past its due
-	// date.
-	PastDue bool `json:"past_due"`
-
-	// RejectionReason is the plain-language reason a submission was turned
-	// down. Null unless Status is "rejected".
-	RejectionReason *string `json:"rejection_reason"`
-
-	// CreatedAt is when the Task was raised, ISO 8601 in UTC.
-	CreatedAt time.Time `json:"created_at"`
-
-	// UpdatedAt is when the Task last changed, ISO 8601 in UTC.
-	UpdatedAt time.Time `json:"updated_at"`
-}
-
-// TaskValues is the response of ConnectedAccounts.GetTaskValues: the field
-// values a connected account has already provided. Source:
-// https://docs.bachs.io/api-reference/connected-accounts/get-submitted-task-values
-type TaskValues struct {
-	// OrganizationID is the connected account these values belong to.
-	OrganizationID string `json:"organization_id"`
-
-	// EntityType is "company" or "individual". Null until set.
-	EntityType *string `json:"entity_type"`
-
-	// Values are the account-level fields and their current values. People
-	// are returned separately under Persons.
-	Values []TaskValueItem `json:"values"`
-
-	// Persons has one entry per person on the account, rolled up rather than
-	// split into fields. Each entry's shape is not fully documented by the
-	// API, so entries are kept as raw JSON objects.
-	Persons []map[string]any `json:"persons"`
-}
-
-// TaskValueItem is one field value on a connected account.
-type TaskValueItem struct {
-	// Field is the canonical key for the field, the same key it is submitted
-	// under.
-	Field string `json:"field"`
-
-	// Label is a human-readable name for the field.
-	Label string `json:"label"`
-
-	// Group is the onboarding section the field is shown in.
-	Group *string `json:"group"`
-
-	// Provided reports whether the account has a value for this field.
-	Provided bool `json:"provided"`
-
-	// Sensitive is true when the value is never echoed back: Value stays null
-	// and Display reads "Provided".
-	Sensitive bool `json:"sensitive"`
-
-	// Value is the raw value, suitable for prefilling an edit form. Always
-	// null when Sensitive is true.
-	Value any `json:"value"`
-
-	// Display is a one-line summary of the value for a review card.
-	Display *string `json:"display"`
-
-	// ReferenceData holds resolved labels for a value stored as a code.
-	ReferenceData map[string]any `json:"reference_data"`
-}
-
-// SubmitTasksRequest is the payload for ConnectedAccounts.SubmitTaskValues.
-// Source:
-// https://docs.bachs.io/api-reference/connected-accounts/submit-task-values
-type SubmitTasksRequest struct {
-	// Fields provides the values being submitted, keyed by the canonical
-	// field keys from the checklist. Send only what you are changing;
-	// anything absent is left alone.
-	Fields map[string]any `json:"fields"`
-
-	// Draft is true to persist partial values, with validation problems
-	// returned on the refreshed checklist instead of failing the request.
-	Draft bool `json:"draft,omitempty"`
-}
-
-// ReusableIdentity is the response of ConnectedAccounts.GetReusableIdentity:
-// whether the person behind this account already verified on another account
-// under the same owner. Source:
-// https://docs.bachs.io/api-reference/connected-accounts/get-a-reusable-identity
-type ReusableIdentity struct {
-	// Available is true when there is an identity to reuse. When false, every
-	// other field is null or empty.
-	Available bool `json:"available"`
-
-	// PersonPublicID identifies the verified person. Send it back to apply
-	// the identity.
-	PersonPublicID *string `json:"person_public_id"`
-
-	// FirstName on the verified identity.
-	FirstName *string `json:"first_name"`
-
-	// LastName on the verified identity.
-	LastName *string `json:"last_name"`
-
-	// Country the identity was verified in.
-	Country *string `json:"country"`
-
-	// VerificationStatus of the offered identity; only a "verified" identity
-	// is ever offered.
-	VerificationStatus *string `json:"verification_status"`
-
-	// UsedBy lists the owner's other businesses already using this identity.
-	UsedBy []string `json:"used_by"`
-}
-
-// ApplyReusableIdentityRequest is the payload for
-// ConnectedAccounts.ApplyReusableIdentity.
-type ApplyReusableIdentityRequest struct {
-	// PersonPublicID is the verified person to copy onto this account, taken
-	// from the reusable identity. Only an identity belonging to the same
-	// owner can be applied.
-	PersonPublicID string `json:"person_public_id"`
-}
-
-// ApplyReusableIdentityResponse is the result of applying a reusable identity.
-type ApplyReusableIdentityResponse struct {
-	// Applied is true when the identity was copied onto this account's
-	// representative.
-	Applied bool `json:"applied"`
-
-	// VerificationStatus is the representative's state after the copy.
-	VerificationStatus string `json:"verification_status"`
-}
-
-// TaskBankList is the response of ConnectedAccounts.ListBanks: the banks a
-// connected account can name as its payout destination.
-type TaskBankList struct {
-	// Country the list was resolved for, uppercased.
-	Country string `json:"country"`
-
-	// Banks available as payout destinations for this country.
-	Banks []TaskBank `json:"banks"`
-}
-
-// TaskBank is one bank a connected account can name as its payout
-// destination.
-type TaskBank struct {
-	// Name to show the account holder.
-	Name string `json:"name"`
-
-	// Code to send as bank_code when resolving an account or submitting a
-	// payout destination.
-	Code string `json:"code"`
-}
-
-// TaskMobileMoneyList is the response of ConnectedAccounts.ListMobileMoneyProviders.
-type TaskMobileMoneyList struct {
-	// Country the list was resolved for, uppercased.
-	Country string `json:"country"`
-
-	// Providers available in this country, deduplicated and in display order.
-	// Empty when the country has none.
-	Providers []string `json:"providers"`
-}
-
-// ResolveTaskBankAccountRequest is the payload for
-// ConnectedAccounts.ResolveBankAccount.
-type ResolveTaskBankAccountRequest struct {
-	// AccountNumber to look up, digits only and exactly as typed.
-	AccountNumber string `json:"account_number"`
-
-	// BankCode of the bank holding the account, from the bank list.
-	BankCode string `json:"bank_code"`
-
-	// Country to resolve in, two-letter ISO 3166-1. Falls back to the
-	// connected account's country.
-	Country *string `json:"country,omitempty"`
-}
-
-// ResolveTaskBankAccountResponse is the result of resolving a bank account.
-// Check Resolved before trusting AccountName.
-type ResolveTaskBankAccountResponse struct {
-	// Resolved is true when the account number was matched. False covers a
-	// wrong number, an unsupported country, and an unresolved lookup.
-	Resolved bool `json:"resolved"`
-
-	// AccountName registered on the account. Show it back for confirmation.
-	// Null when not resolved.
-	AccountName *string `json:"account_name"`
-
-	// AccountNumber as held on record, which can be normalised from what was
-	// sent. Null when not resolved.
-	AccountNumber *string `json:"account_number"`
-
-	// Message explains why the lookup did not resolve, safe to show the
-	// account holder. Null on a successful match.
-	Message *string `json:"message"`
-}
-
 // Create creates a connected account under your organization. ContactEmail is
 // the only required field; name at least one persona in Configuration with
 // the capabilities it needs. In sandbox, a requested capability whose
@@ -801,6 +468,50 @@ func (s *ConnectedAccountService) RequestCapabilities(ctx context.Context, conne
 	return &out, meta, nil
 }
 
+// UpdateAccountRequest is the payload for ConnectedAccounts.UpdateAccount:
+// contact and profile changes, capability requests, and requirement values
+// in one round trip. Omit a field to leave it untouched. Requirement values
+// go in Fields, keyed by the field keys from requirements.entries (for
+// example "payout_destination" or a "persons" list); every field sent is
+// validated together, and if any one is rejected nothing in Fields is saved.
+// Source: https://docs.bachs.io/connect/guides/api-onboarding
+type UpdateAccountRequest struct {
+	// ContactEmail replaces the contact email.
+	ContactEmail *string `json:"contact_email,omitempty"`
+
+	// DisplayName replaces the listed name.
+	DisplayName *string `json:"display_name,omitempty"`
+
+	// Country replaces the account country.
+	Country *string `json:"country,omitempty"`
+
+	// EntityType replaces the entity type.
+	EntityType *string `json:"entity_type,omitempty"`
+
+	// Configuration applies personas and requests capabilities, in the
+	// same shape as creation.
+	Configuration map[string]PersonaConfig `json:"configuration,omitempty"`
+
+	// Fields submits requirement values. Contact details and capability
+	// requests in the same call are applied before Fields is validated, so
+	// a rejection does not undo them.
+	Fields map[string]any `json:"fields,omitempty"`
+}
+
+// UpdateAccount changes a connected account: contact details, capability
+// requests, and requirement values together. Submitted fields move to
+// pending_verification until checked; anything rejected comes back as
+// currently_due with an entry in requirements errors. Verified live against
+// the sandbox.
+func (s *ConnectedAccountService) UpdateAccount(ctx context.Context, connectedAccountID string, req UpdateAccountRequest) (*ConnectedAccount, *ResponseMeta, error) {
+	var out ConnectedAccount
+	meta, err := s.request(ctx, http.MethodPost, "/accounts/"+url.PathEscape(connectedAccountID), req, &out)
+	if err != nil {
+		return nil, meta, err
+	}
+	return &out, meta, nil
+}
+
 // CreateAccountLink issues a hosted link that walks a connected account
 // through its outstanding Tasks. Creating a link invalidates any outstanding
 // active link of the same type for that account, so create one at the moment
@@ -819,152 +530,6 @@ func (s *ConnectedAccountService) CreateAccountLink(ctx context.Context, connect
 func (s *ConnectedAccountService) ListCapabilities(ctx context.Context, connectedAccountID string) (*ConnectedAccountCapabilities, *ResponseMeta, error) {
 	var out ConnectedAccountCapabilities
 	meta, err := s.request(ctx, http.MethodGet, "/accounts/"+url.PathEscape(connectedAccountID)+"/capabilities", nil, &out)
-	if err != nil {
-		return nil, meta, err
-	}
-	return &out, meta, nil
-}
-
-// GetTaskChecklist returns every field a connected account owes, with the
-// state each field is in, both flat and grouped by capability.
-func (s *ConnectedAccountService) GetTaskChecklist(ctx context.Context, connectedAccountID string) (*TaskChecklist, *ResponseMeta, error) {
-	var out TaskChecklist
-	meta, err := s.request(ctx, http.MethodGet, "/connected-accounts/"+url.PathEscape(connectedAccountID)+"/requirements/checklist", nil, &out)
-	if err != nil {
-		return nil, meta, err
-	}
-	return &out, meta, nil
-}
-
-// ListTasks lists a connected account's worklist: one item per thing the
-// account holder has to do. Filter with ListParams.Status.
-func (s *ConnectedAccountService) ListTasks(ctx context.Context, connectedAccountID string, params ListParams) (*Page[Task], *ResponseMeta, error) {
-	var env pageEnvelope[Task]
-	meta, err := s.request(ctx, http.MethodGet, queryPath("/connected-accounts/"+url.PathEscape(connectedAccountID)+"/requirements/tasks", params), nil, &env)
-	if err != nil {
-		return nil, meta, err
-	}
-	return env.page(), meta, nil
-}
-
-// GetTaskValues reads back what a connected account has already provided, so
-// you can show a review card or prefill an edit form. Identity documents and
-// bank account numbers come back marked sensitive with no value.
-func (s *ConnectedAccountService) GetTaskValues(ctx context.Context, connectedAccountID string) (*TaskValues, *ResponseMeta, error) {
-	var out TaskValues
-	meta, err := s.request(ctx, http.MethodGet, "/connected-accounts/"+url.PathEscape(connectedAccountID)+"/requirements/values", nil, &out)
-	if err != nil {
-		return nil, meta, err
-	}
-	return &out, meta, nil
-}
-
-// SubmitTaskValues provides values for a connected account's Tasks and
-// returns the refreshed checklist in the same round trip. Send only the
-// fields you are changing; anything absent is left alone. Submitting collects
-// data, it does not grant capabilities — a person still decides.
-func (s *ConnectedAccountService) SubmitTaskValues(ctx context.Context, connectedAccountID string, req SubmitTasksRequest) (*TaskChecklist, *ResponseMeta, error) {
-	var out TaskChecklist
-	meta, err := s.request(ctx, http.MethodPost, "/connected-accounts/"+url.PathEscape(connectedAccountID)+"/requirements/submit", req, &out)
-	if err != nil {
-		return nil, meta, err
-	}
-	return &out, meta, nil
-}
-
-// GetReusableIdentity checks whether the person behind this connected account
-// already verified on another account under the same owner. Returns
-// Available: false with every other field empty when there is nothing to
-// reuse.
-func (s *ConnectedAccountService) GetReusableIdentity(ctx context.Context, connectedAccountID string) (*ReusableIdentity, *ResponseMeta, error) {
-	var out ReusableIdentity
-	meta, err := s.request(ctx, http.MethodGet, "/connected-accounts/"+url.PathEscape(connectedAccountID)+"/requirements/reusable-identity", nil, &out)
-	if err != nil {
-		return nil, meta, err
-	}
-	return &out, meta, nil
-}
-
-// ApplyReusableIdentity copies a previously verified identity onto this
-// connected account's representative, so the person skips the identity check.
-// Business details, the payout destination, and terms acceptance are still
-// collected per account.
-func (s *ConnectedAccountService) ApplyReusableIdentity(ctx context.Context, connectedAccountID string, req ApplyReusableIdentityRequest) (*ApplyReusableIdentityResponse, *ResponseMeta, error) {
-	var out ApplyReusableIdentityResponse
-	meta, err := s.request(ctx, http.MethodPost, "/connected-accounts/"+url.PathEscape(connectedAccountID)+"/requirements/reusable-identity/apply", req, &out)
-	if err != nil {
-		return nil, meta, err
-	}
-	return &out, meta, nil
-}
-
-// ListBanks lists the banks a connected account can name as its payout
-// destination. Use the Code from this list when resolving an account number
-// or submitting a payout destination. Pass country to override the account's
-// country.
-func (s *ConnectedAccountService) ListBanks(ctx context.Context, connectedAccountID, country string) (*TaskBankList, *ResponseMeta, error) {
-	var out TaskBankList
-	path := "/connected-accounts/" + url.PathEscape(connectedAccountID) + "/requirements/banks"
-	if country != "" {
-		path += "?country=" + url.QueryEscape(country)
-	}
-	meta, err := s.request(ctx, http.MethodGet, path, nil, &out)
-	if err != nil {
-		return nil, meta, err
-	}
-	return &out, meta, nil
-}
-
-// ListMobileMoneyProviders lists the mobile money providers available for a
-// connected account's country. Returns an empty providers array for a country
-// with none, rather than an error.
-func (s *ConnectedAccountService) ListMobileMoneyProviders(ctx context.Context, connectedAccountID, country string) (*TaskMobileMoneyList, *ResponseMeta, error) {
-	var out TaskMobileMoneyList
-	path := "/connected-accounts/" + url.PathEscape(connectedAccountID) + "/requirements/momo"
-	if country != "" {
-		path += "?country=" + url.QueryEscape(country)
-	}
-	meta, err := s.request(ctx, http.MethodGet, path, nil, &out)
-	if err != nil {
-		return nil, meta, err
-	}
-	return &out, meta, nil
-}
-
-// ResolveBankAccount looks up the name registered on a bank account before it
-// is submitted as a connected account's payout destination. A number that
-// does not match returns Resolved: false, not an error.
-func (s *ConnectedAccountService) ResolveBankAccount(ctx context.Context, connectedAccountID string, req ResolveTaskBankAccountRequest) (*ResolveTaskBankAccountResponse, *ResponseMeta, error) {
-	var out ResolveTaskBankAccountResponse
-	meta, err := s.request(ctx, http.MethodPost, "/connected-accounts/"+url.PathEscape(connectedAccountID)+"/requirements/accounts/resolve", req, &out)
-	if err != nil {
-		return nil, meta, err
-	}
-	return &out, meta, nil
-}
-
-// UploadDocument uploads a file (at most 20 MB) against a connected account.
-// The returned upload_id is the value of the document field you are
-// satisfying when submitting Tasks; uploading on its own satisfies nothing.
-func (s *ConnectedAccountService) UploadDocument(ctx context.Context, connectedAccountID, fileName string, file io.Reader, scope string, opts ...RequestOption) (*Upload, *ResponseMeta, error) {
-	body, contentType, err := multipartUpload(fileName, file, map[string]string{"scope": scope})
-	if err != nil {
-		return nil, nil, err
-	}
-
-	var out Upload
-	meta, err := s.request(ctx, http.MethodPost, "/connected-accounts/"+url.PathEscape(connectedAccountID)+"/uploads", nil, &out, append(opts, withRawBody(body, contentType))...)
-	if err != nil {
-		return nil, meta, err
-	}
-	return &out, meta, nil
-}
-
-// GetDocument reads the metadata for a file uploaded against a connected
-// account: its name, size, type, and the URL it is served from.
-func (s *ConnectedAccountService) GetDocument(ctx context.Context, connectedAccountID, uploadID string) (*Upload, *ResponseMeta, error) {
-	var out Upload
-	meta, err := s.request(ctx, http.MethodGet, "/connected-accounts/"+url.PathEscape(connectedAccountID)+"/uploads/"+url.PathEscape(uploadID), nil, &out)
 	if err != nil {
 		return nil, meta, err
 	}

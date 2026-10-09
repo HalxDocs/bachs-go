@@ -200,48 +200,8 @@ func TestServiceErrorBranches(t *testing.T) {
 			_, meta, err := c.ConnectedAccounts.ListCapabilities(ctx, "org_1")
 			return meta, err
 		}},
-		{"ConnectedAccounts.GetTaskChecklist", func(c *Client) (*ResponseMeta, error) {
-			_, meta, err := c.ConnectedAccounts.GetTaskChecklist(ctx, "org_1")
-			return meta, err
-		}},
-		{"ConnectedAccounts.ListTasks", func(c *Client) (*ResponseMeta, error) {
-			_, meta, err := c.ConnectedAccounts.ListTasks(ctx, "org_1", ListParams{})
-			return meta, err
-		}},
-		{"ConnectedAccounts.GetTaskValues", func(c *Client) (*ResponseMeta, error) {
-			_, meta, err := c.ConnectedAccounts.GetTaskValues(ctx, "org_1")
-			return meta, err
-		}},
-		{"ConnectedAccounts.SubmitTaskValues", func(c *Client) (*ResponseMeta, error) {
-			_, meta, err := c.ConnectedAccounts.SubmitTaskValues(ctx, "org_1", SubmitTasksRequest{})
-			return meta, err
-		}},
-		{"ConnectedAccounts.GetReusableIdentity", func(c *Client) (*ResponseMeta, error) {
-			_, meta, err := c.ConnectedAccounts.GetReusableIdentity(ctx, "org_1")
-			return meta, err
-		}},
-		{"ConnectedAccounts.ApplyReusableIdentity", func(c *Client) (*ResponseMeta, error) {
-			_, meta, err := c.ConnectedAccounts.ApplyReusableIdentity(ctx, "org_1", ApplyReusableIdentityRequest{})
-			return meta, err
-		}},
-		{"ConnectedAccounts.ListBanks", func(c *Client) (*ResponseMeta, error) {
-			_, meta, err := c.ConnectedAccounts.ListBanks(ctx, "org_1", "NG")
-			return meta, err
-		}},
-		{"ConnectedAccounts.ListMobileMoneyProviders", func(c *Client) (*ResponseMeta, error) {
-			_, meta, err := c.ConnectedAccounts.ListMobileMoneyProviders(ctx, "org_1", "KE")
-			return meta, err
-		}},
-		{"ConnectedAccounts.ResolveBankAccount", func(c *Client) (*ResponseMeta, error) {
-			_, meta, err := c.ConnectedAccounts.ResolveBankAccount(ctx, "org_1", ResolveTaskBankAccountRequest{})
-			return meta, err
-		}},
-		{"ConnectedAccounts.UploadDocument", func(c *Client) (*ResponseMeta, error) {
-			_, meta, err := c.ConnectedAccounts.UploadDocument(ctx, "org_1", "id.jpg", strings.NewReader("jpg bytes"), "identity_documents")
-			return meta, err
-		}},
-		{"ConnectedAccounts.GetDocument", func(c *Client) (*ResponseMeta, error) {
-			_, meta, err := c.ConnectedAccounts.GetDocument(ctx, "org_1", "med_1")
+		{"ConnectedAccounts.UpdateAccount", func(c *Client) (*ResponseMeta, error) {
+			_, meta, err := c.ConnectedAccounts.UpdateAccount(ctx, "org_1", UpdateAccountRequest{})
 			return meta, err
 		}},
 
@@ -612,20 +572,6 @@ func TestDisputeUploadMultipartError(t *testing.T) {
 	})
 
 	_, _, err := c.Disputes.UploadDocument(context.Background(), "broken.pdf", failingReader{}, "dispute-evidence")
-	if err == nil {
-		t.Fatal("UploadDocument returned nil error, want multipart error")
-	}
-	if !strings.Contains(err.Error(), "copy upload file") {
-		t.Errorf("error = %v, want multipart copy error", err)
-	}
-}
-
-func TestConnectedAccountUploadMultipartError(t *testing.T) {
-	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		t.Error("request should not have been sent")
-	})
-
-	_, _, err := c.ConnectedAccounts.UploadDocument(context.Background(), "org_1", "broken.jpg", failingReader{}, "identity_documents")
 	if err == nil {
 		t.Fatal("UploadDocument returned nil error, want multipart error")
 	}

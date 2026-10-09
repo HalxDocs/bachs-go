@@ -4,6 +4,28 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v1.5.0] - 2026-10-09
+
+### Removed
+
+- **Breaking:** the 11 requirement-task helpers on `ConnectedAccounts`
+  (`GetTaskChecklist`, `ListTasks`, `GetTaskValues`, `SubmitTaskValues`,
+  `GetReusableIdentity`, `ApplyReusableIdentity`, `ListBanks`,
+  `ListMobileMoneyProviders`, `ResolveBankAccount`, `UploadDocument`,
+  `GetDocument`) and their request/response types. Every one returns
+  `404` on the live API under both the legacy and the canonical prefix,
+  and none appears in the API reference — the flow moved. Read
+  requirements from `Get` (`requirements.entries`), resolve lookups with
+  the `Reference` service, upload with `Media.Upload`, and attach IDs
+  with `Persons.AttachDocument`.
+
+### Added
+
+- `ConnectedAccounts.UpdateAccount` (`POST /v1/accounts/{id}`):
+  contact/profile changes, capability requests, and requirement `fields`
+  in one call — the documented replacement for the removed submit flow.
+  Verified live against the sandbox.
+
 ## [v1.4.0] - 2026-10-09
 
 ### Fixed

@@ -252,6 +252,17 @@ link, _, _ := client.ConnectedAccounts.CreateAccountLink(ctx, account.ID, bachs.
     ReturnURL:  "https://adastores.example/connect/return",
 })
 
+// Read requirements from account.Requirements.Entries, then submit values,
+// contact changes, and capability requests together (verified live):
+account, _, _ = client.ConnectedAccounts.UpdateAccount(ctx, account.ID, bachs.UpdateAccountRequest{
+    Fields: map[string]any{
+        "payout_destination": map[string]any{
+            "currency": "NGN", "account_number": "0123456789",
+            "account_name": "Ada Obi", "bank_code": "058",
+        },
+    },
+})
+
 // Submit the representative with their ID numbers, attach the ID document,
 // and read the verification result:
 rep := true

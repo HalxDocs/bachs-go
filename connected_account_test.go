@@ -2,6 +2,7 @@ package bachs
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -64,23 +65,55 @@ func accountServer(t *testing.T, method, path string, body string) *Client {
 	})
 }
 
-// TestConnectedAccountCreate uses the exact request example from
-// https://docs.bachs.io/api-reference/connected-accounts/create-a-connected-account
+// TestConnectedAccountCreate uses the request example from
+// https://docs.bachs.io/connect/guides/create-an-account.
 func TestConnectedAccountCreate(t *testing.T) {
-	c := accountServer(t, http.MethodPost, "/v1/organizations/connected-accounts", connectedAccountExample)
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/v1/accounts" {
+			t.Errorf("path = %q, want /v1/accounts", r.URL.Path)
+		}
+		body, _ := io.ReadAll(r.Body)
+		var got map[string]any
+		if err := json.Unmarshal(body, &got); err != nil {
+			t.Fatalf("request body is not valid JSON: %v", err)
+		}
+		if got["contact_email"] != "ada@adastores.example" {
+			t.Errorf("contact_email = %v", got["contact_email"])
+		}
+		cfg, ok := got["configuration"].(map[string]any)
+		if !ok {
+			t.Fatalf("configuration missing: %s", body)
+		}
+		recipient, ok := cfg["recipient"].(map[string]any)
+		if !ok {
+			t.Fatalf("recipient persona missing: %s", body)
+		}
+		caps, ok := recipient["capabilities"].(map[string]any)
+		if !ok || caps["payouts"].(map[string]any)["requested"] != true {
+			t.Errorf("capabilities = %v, want payouts requested", recipient["capabilities"])
+		}
+		io.WriteString(w, connectedAccountExample)
+	})
 
 	acct, _, err := c.ConnectedAccounts.Create(context.Background(), CreateConnectedAccountRequest{
 		ContactEmail: "ada@adastores.example",
 		DisplayName:  stringPtr("Ada Stores"),
-		FirstName:    stringPtr("Ada"),
-		LastName:     stringPtr("Okafor"),
 		Country:      stringPtr("NG"),
-		EntityType:   stringPtr("company"),
-		Capabilities: map[string]CapabilityRequest{
-			"payouts":   {Requested: true},
-			"transfers": {Requested: true},
+		EntityType:   stringPtr(AccountEntityIndividual),
+		Configuration: map[string]PersonaConfig{
+			AccountPersonaRecipient: {
+				Capabilities: map[string]CapabilityRequest{
+					"payouts":   {Requested: true},
+					"transfers": {Requested: true},
+				},
+			},
 		},
-		Controller: &ControllerRequest{Fees: ControllerFeesRequest{Payer: "account"}},
+		Responsibilities: &ResponsibilitiesConfig{
+			Fees: FeeCollectorConfig{Collector: FeeCollectorBachs},
+		},
 	})
 	if err != nil {
 		t.Fatalf("Create returned error: %v", err)
@@ -200,10 +233,39 @@ func TestConnectedAccountList(t *testing.T) {
 }
 
 func TestConnectedAccountRequestCapabilities(t *testing.T) {
-	c := accountServer(t, http.MethodPatch, "/v1/connected-accounts/org_1", connectedAccountExample)
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("method = %s, want POST", r.Method)
+		}
+		if r.URL.Path != "/v1/accounts/org_1" {
+			t.Errorf("path = %q, want /v1/accounts/org_1", r.URL.Path)
+		}
+		body, _ := io.ReadAll(r.Body)
+		var got map[string]any
+		if err := json.Unmarshal(body, &got); err != nil {
+			t.Fatalf("request body is not valid JSON: %v", err)
+		}
+		cfg, ok := got["configuration"].(map[string]any)
+		if !ok {
+			t.Fatalf("configuration missing: %s", body)
+		}
+		recipient, ok := cfg["recipient"].(map[string]any)
+		if !ok {
+			t.Fatalf("recipient persona missing: %s", body)
+		}
+		caps, ok := recipient["capabilities"].(map[string]any)
+		if !ok || caps["conversions"].(map[string]any)["requested"] != true {
+			t.Errorf("capabilities = %v, want conversions requested", recipient["capabilities"])
+		}
+		io.WriteString(w, connectedAccountExample)
+	})
 
 	acct, _, err := c.ConnectedAccounts.RequestCapabilities(context.Background(), "org_1", UpdateConnectedAccountRequest{
-		Capabilities: map[string]bool{"conversions": true},
+		Configuration: map[string]PersonaConfig{
+			AccountPersonaRecipient: {
+				Capabilities: map[string]CapabilityRequest{"conversions": {Requested: true}},
+			},
+		},
 	})
 	if err != nil {
 		t.Fatalf("RequestCapabilities returned error: %v", err)
@@ -216,7 +278,7 @@ func TestConnectedAccountRequestCapabilities(t *testing.T) {
 // TestConnectedAccountCreateAccountLink uses the exact example from
 // https://docs.bachs.io/api-reference/connected-accounts/create-an-account-link
 func TestConnectedAccountCreateAccountLink(t *testing.T) {
-	c := accountServer(t, http.MethodPost, "/v1/connected-accounts/org_4d81fa9c2b6e0357/account-links", `{
+	c := accountServer(t, http.MethodPost, "/v1/accounts/org_4d81fa9c2b6e0357/account-links", `{
 		"id": "alnk_3b7e12c9d4a05f68b1c2",
 		"object": "connected_account_link",
 		"account": "org_4d81fa9c2b6e0357",

@@ -230,11 +230,18 @@ balances, _, _ := client.Misc.GetBalances(ctx)
 // A portal session lets a customer manage their own subscriptions and cards:
 session, _, _ := client.CustomerSessions.Create(ctx, "cust_...")
 
+displayName, country := "Ada Stores", "NG"
 account, _, _ := client.ConnectedAccounts.Create(ctx, bachs.CreateConnectedAccountRequest{
     ContactEmail: "ada@adastores.example",
-    Capabilities: map[string]bachs.CapabilityRequest{
-        "payouts":   {Requested: true},
-        "transfers": {Requested: true},
+    DisplayName:  &displayName,
+    Country:      &country,
+    Configuration: map[string]bachs.PersonaConfig{
+        bachs.AccountPersonaRecipient: {
+            Capabilities: map[string]bachs.CapabilityRequest{
+                "payouts":   {Requested: true},
+                "transfers": {Requested: true},
+            },
+        },
     },
 })
 link, _, _ := client.ConnectedAccounts.CreateAccountLink(ctx, account.ID, bachs.CreateAccountLinkRequest{

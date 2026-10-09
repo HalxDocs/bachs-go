@@ -55,8 +55,8 @@ type ConnectedAccount struct {
 	// (responsibilities.fees.collector). Null when unset.
 	Responsibilities map[string]any `json:"responsibilities"`
 
-	// FeeHandling is who absorbs processing fees at checkout:
-	// "org_pays_fee" or "customer_pays_fee".
+	// FeeHandling is who absorbs processing fees on the organization's own
+	// charges: "account_pays_fee" or "customer_pays_fee".
 	FeeHandling string `json:"fee_handling"`
 
 	// EnabledPaymentMethods for this organization's checkouts, keyed by
@@ -224,10 +224,72 @@ type ControllerFeesResponse struct {
 	Payer string `json:"payer"`
 }
 
+// Account personas applied through Configuration. A capability is only ever
+// named inside the persona object it belongs to. Source:
+// https://docs.bachs.io/connect/guides/create-an-account
+const (
+	// AccountPersonaMerchant applies the merchant persona: the account can
+	// accept payments in its own name.
+	AccountPersonaMerchant = "merchant"
+
+	// AccountPersonaRecipient applies the recipient persona: the account can
+	// be paid out and move transfers. Most marketplaces want this shape.
+	AccountPersonaRecipient = "recipient"
+)
+
+// Account entity types.
+const (
+	// AccountEntityCompany is a registered company.
+	AccountEntityCompany = "company"
+
+	// AccountEntityIndividual is a person.
+	AccountEntityIndividual = "individual"
+)
+
+// Processing-fee collectors for an account's own charges. Fixed at creation.
+const (
+	// FeeCollectorBachs takes the processing fee out of the account's own
+	// charges. The default.
+	FeeCollectorBachs = "bachs"
+
+	// FeeCollectorPlatform has the platform absorb the processing fee
+	// instead.
+	FeeCollectorPlatform = "platform"
+)
+
+// PersonaConfig applies one persona to an account and requests capabilities
+// under it. Name every persona the account needs as a key in Configuration,
+// with each capability nested under its persona's own Capabilities: a
+// capability nested under the wrong persona fails with
+// capability_configuration_mismatch, and it is never silently corrected.
+type PersonaConfig struct {
+	// Capabilities to request under this persona, keyed by capability name.
+	// Omitting Capabilities on creation requests every capability the
+	// persona allows; on update it only applies the persona and requests
+	// nothing.
+	Capabilities map[string]CapabilityRequest `json:"capabilities,omitempty"`
+}
+
+// FeeCollectorConfig sets who absorbs processing fees on an account's own
+// charges.
+type FeeCollectorConfig struct {
+	// Collector is FeeCollectorBachs or FeeCollectorPlatform.
+	Collector string `json:"collector"`
+}
+
+// ResponsibilitiesConfig sets the fixed arrangements for an account. They
+// are decided at creation; there is no endpoint to change them afterward.
+type ResponsibilitiesConfig struct {
+	// Fees describes who absorbs processing fees on the account's charges.
+	Fees FeeCollectorConfig `json:"fees"`
+}
+
 // CreateConnectedAccountRequest is the payload for ConnectedAccounts.Create.
-// The account starts with nothing enabled; the capabilities you request here
-// decide which Tasks it is given. Source:
-// https://docs.bachs.io/api-reference/connected-accounts/create-a-connected-account
+// ContactEmail is the only required field; send Country when the account is
+// not in yours, because country decides which requirements it is given. Name
+// at least one persona in Configuration and request at least one capability
+// under it. Source:
+// https://docs.bachs.io/connect/guides/create-an-account
 type CreateConnectedAccountRequest struct {
 	// ContactEmail of the person or business behind the account. Trimmed and
 	// lowercased before storage. Required.
@@ -236,27 +298,20 @@ type CreateConnectedAccountRequest struct {
 	// DisplayName is the name you want the account listed under.
 	DisplayName *string `json:"display_name,omitempty"`
 
-	// FirstName of the person being onboarded.
-	FirstName *string `json:"first_name,omitempty"`
-
-	// LastName of the person being onboarded.
-	LastName *string `json:"last_name,omitempty"`
-
 	// Country is the two-letter ISO 3166-1 code for the account; it decides
-	// which Tasks the account is given.
+	// which requirements the account is given.
 	Country *string `json:"country,omitempty"`
 
-	// EntityType is "company", "individual", or "business" (a legacy alias
-	// stored as "company").
+	// EntityType is AccountEntityCompany or AccountEntityIndividual.
 	EntityType *string `json:"entity_type,omitempty"`
 
-	// Capabilities to request, keyed by capability name. Omitting the field
-	// requests every capability the account is eligible for.
-	Capabilities map[string]CapabilityRequest `json:"capabilities,omitempty"`
+	// Configuration names each persona the account needs as a key, with the
+	// requested capabilities nested under it.
+	Configuration map[string]PersonaConfig `json:"configuration,omitempty"`
 
-	// Controller sets the fee arrangement. Defaults to the account absorbing
-	// its own processing fees.
-	Controller *ControllerRequest `json:"controller,omitempty"`
+	// Responsibilities fixes who absorbs processing fees on the account's
+	// own charges. Defaults to the account absorbing them.
+	Responsibilities *ResponsibilitiesConfig `json:"responsibilities,omitempty"`
 }
 
 // CapabilityRequest requests one capability for a connected account.
@@ -265,28 +320,15 @@ type CapabilityRequest struct {
 	Requested bool `json:"requested"`
 }
 
-// ControllerRequest sets the fee arrangement when creating a connected
-// account.
-type ControllerRequest struct {
-	// Fees describes who absorbs processing fees on the account's charges.
-	Fees ControllerFeesRequest `json:"fees"`
-}
-
-// ControllerFeesRequest is the fees portion of the create request.
-type ControllerFeesRequest struct {
-	// Payer is "account": the connected account absorbs processing fees on
-	// its own charges.
-	Payer string `json:"payer"`
-}
-
 // UpdateConnectedAccountRequest is the payload for
-// ConnectedAccounts.RequestCapabilities. Capabilities cannot be revoked
-// through the API. Source:
-// https://docs.bachs.io/api-reference/connected-accounts/request-capabilities-on-a-connected-account
+// ConnectedAccounts.RequestCapabilities: the same configuration shape as
+// creation. Naming a persona as a key applies it if the account does not
+// already have it; unlike creation, an omitted capabilities block on update
+// never blanket-requests. Capabilities cannot be revoked through the API.
 type UpdateConnectedAccountRequest struct {
-	// Capabilities to request, keyed by capability name. Only names set to
-	// true are acted on; false entries are ignored.
-	Capabilities map[string]bool `json:"capabilities"`
+	// Configuration names the personas to apply, with capabilities nested
+	// under each.
+	Configuration map[string]PersonaConfig `json:"configuration"`
 }
 
 // CreateAccountLinkRequest is the payload for
@@ -707,12 +749,14 @@ type ResolveTaskBankAccountResponse struct {
 	Message *string `json:"message"`
 }
 
-// Create creates a connected account under your organization. The account
-// starts with nothing enabled; the capabilities you request decide which Tasks
-// it is given. Requires an active connect capability on your own organization.
+// Create creates a connected account under your organization. ContactEmail is
+// the only required field; name at least one persona in Configuration with
+// the capabilities it needs. In sandbox, a requested capability whose
+// persona is applied is granted active immediately; in live it lands
+// restricted until a reviewer enables it.
 func (s *ConnectedAccountService) Create(ctx context.Context, req CreateConnectedAccountRequest, opts ...RequestOption) (*ConnectedAccount, *ResponseMeta, error) {
 	var out ConnectedAccount
-	meta, err := s.request(ctx, http.MethodPost, "/organizations/connected-accounts", req, &out, opts...)
+	meta, err := s.request(ctx, http.MethodPost, "/accounts", req, &out, opts...)
 	if err != nil {
 		return nil, meta, err
 	}
@@ -743,13 +787,14 @@ func (s *ConnectedAccountService) List(ctx context.Context, params ListParams) (
 }
 
 // RequestCapabilities requests additional capabilities for a connected
-// account. Each newly requested capability lands as "pending" and surfaces
-// its Tasks; requesting authorizes nothing — a person enables the capability
-// once the Tasks are satisfied. Capabilities cannot be revoked through the
+// account using the same configuration shape as creation: naming a persona
+// as a key applies it if the account does not already have it. In sandbox
+// the requested capabilities are granted active immediately; in live they
+// land restricted for review. Capabilities cannot be revoked through the
 // API.
 func (s *ConnectedAccountService) RequestCapabilities(ctx context.Context, connectedAccountID string, req UpdateConnectedAccountRequest) (*ConnectedAccount, *ResponseMeta, error) {
 	var out ConnectedAccount
-	meta, err := s.request(ctx, http.MethodPatch, "/connected-accounts/"+url.PathEscape(connectedAccountID), req, &out)
+	meta, err := s.request(ctx, http.MethodPost, "/accounts/"+url.PathEscape(connectedAccountID), req, &out)
 	if err != nil {
 		return nil, meta, err
 	}
@@ -762,7 +807,7 @@ func (s *ConnectedAccountService) RequestCapabilities(ctx context.Context, conne
 // you redirect rather than on every page render.
 func (s *ConnectedAccountService) CreateAccountLink(ctx context.Context, connectedAccountID string, req CreateAccountLinkRequest) (*AccountLink, *ResponseMeta, error) {
 	var out AccountLink
-	meta, err := s.request(ctx, http.MethodPost, "/connected-accounts/"+url.PathEscape(connectedAccountID)+"/account-links", req, &out)
+	meta, err := s.request(ctx, http.MethodPost, "/accounts/"+url.PathEscape(connectedAccountID)+"/account-links", req, &out)
 	if err != nil {
 		return nil, meta, err
 	}

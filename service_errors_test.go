@@ -389,7 +389,7 @@ func TestServiceErrorBranches(t *testing.T) {
 			return meta, err
 		}},
 		{"Webhooks.ListEndpoints", func(c *Client) (*ResponseMeta, error) {
-			_, meta, err := c.Webhooks.ListEndpoints(ctx)
+			_, meta, err := c.Webhooks.ListEndpoints(ctx, ListParams{})
 			return meta, err
 		}},
 		{"Webhooks.GetEndpoint", func(c *Client) (*ResponseMeta, error) {

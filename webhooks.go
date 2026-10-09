@@ -338,15 +338,15 @@ func (s *WebhookService) CreateEndpoint(ctx context.Context, req CreateWebhookEn
 }
 
 // ListEndpoints lists every webhook endpoint for your organization. The API
-// returns a flat array without pagination, so this returns the slice directly
-// rather than a Page.
-func (s *WebhookService) ListEndpoints(ctx context.Context) ([]WebhookEndpoint, *ResponseMeta, error) {
-	var out []WebhookEndpoint
-	meta, err := s.request(ctx, http.MethodGet, "/webhooks/endpoints", nil, &out)
+// returns a standard items/pagination envelope, like every other list
+// method.
+func (s *WebhookService) ListEndpoints(ctx context.Context, params ListParams) (*Page[WebhookEndpoint], *ResponseMeta, error) {
+	var env pageEnvelope[WebhookEndpoint]
+	meta, err := s.request(ctx, http.MethodGet, queryPath("/webhooks/endpoints", params), nil, &env)
 	if err != nil {
 		return nil, meta, err
 	}
-	return out, meta, nil
+	return env.page(), meta, nil
 }
 
 // GetEndpoint returns a single webhook endpoint by ID.

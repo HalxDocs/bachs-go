@@ -64,19 +64,23 @@ func TestListWebhookEndpoints(t *testing.T) {
 		if r.URL.Path != "/v1/webhooks/endpoints" {
 			t.Errorf("path = %q", r.URL.Path)
 		}
-		// The list returns a flat array, not an items envelope.
-		io.WriteString(w, `[`+webhookEndpointExample+`]`)
+		// The list returns a standard items/pagination envelope. A flat
+		// array here would be a server bug, not a second shape.
+		io.WriteString(w, `{"items": [`+webhookEndpointExample+`], "pagination": {"next_cursor": null, "prev_cursor": null, "has_more": false, "limit": 50, "offset": 0, "returned": 1, "total": 1}}`)
 	})
 
-	eps, _, err := c.Webhooks.ListEndpoints(context.Background())
+	page, _, err := c.Webhooks.ListEndpoints(context.Background(), ListParams{})
 	if err != nil {
 		t.Fatalf("ListEndpoints returned error: %v", err)
 	}
-	if len(eps) != 1 {
-		t.Fatalf("len = %d, want 1", len(eps))
+	if len(page.Items) != 1 {
+		t.Fatalf("len = %d, want 1", len(page.Items))
 	}
-	if eps[0].EndpointID != "whe_1a2b3c4d5e" || eps[0].URL != "https://api.example.com/webhooks/bachs" {
-		t.Errorf("eps[0] = %+v", eps[0])
+	if page.Items[0].EndpointID != "whe_1a2b3c4d5e" || page.Items[0].URL != "https://api.example.com/webhooks/bachs" {
+		t.Errorf("Items[0] = %+v", page.Items[0])
+	}
+	if page.Pagination.Total != 1 {
+		t.Errorf("Pagination.Total = %d, want 1", page.Pagination.Total)
 	}
 }
 

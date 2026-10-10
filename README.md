@@ -327,11 +327,12 @@ quote, _, _ := client.Payouts.CreateQuote(ctx, bachs.CreatePayoutQuoteRequest{
 })
 
 destination, _, _ := client.Payouts.CreateDestination(ctx, bachs.CreatePayoutDestinationRequest{
-    DestinationType: "bank_account",
-    Currency:        "NGN",
-    AccountNumber:   "0123456789",
-    AccountName:     "John Doe",
-    BankCode:        "058",
+    Type:          "bank_account",
+    Currency:    "NGN",
+    Name:        "NGN operating account",
+    AccountNumber: "0123456789",
+    AccountName:   "John Doe",
+    BankCode:      "058",
 })
 
 withdrawal, _, _ := client.Payouts.CreateWithdrawal(ctx, bachs.CreateWithdrawalRequest{

@@ -4,6 +4,30 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v1.6.0] - 2026-10-10
+
+### Fixed
+
+- `Payouts.UpdateDestination` sends PATCH (PUT is `405` live).
+
+### Changed
+
+- **Breaking:** `PayoutDestination` follows the live destination object
+  (`name`/`type`, review `status`, `is_usable`/`is_default`, rail fields)
+  instead of the hollow legacy shape that decoded almost nothing.
+- **Breaking:** `UpdatePayoutDestinationRequest` is now a PATCH-shaped
+  struct (`name`, `is_default`, detail fields) — renaming or promoting a
+  destination, per the guide. Sending no supported field is a `400`.
+- **Breaking:** `DeletePayoutDestinationResponse` is `{id, deleted}`,
+  matching the API. The old `{success, message}` left `Success` false on
+  every successful delete.
+
+### Added
+
+- `CreatePayoutDestinationRequest` accepts canonical `type`/`name` (plus
+  `scheme` and `bank_address` for routed banks). The `destination_type` /
+  `label` aliases still work and map onto them; canonical wins.
+
 ## [v1.5.0] - 2026-10-09
 
 ### Removed

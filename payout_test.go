@@ -2,6 +2,7 @@ package bachs
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"testing"
@@ -82,6 +83,31 @@ func TestCreateQuote(t *testing.T) {
 	}
 }
 
+// payoutDestinationExample mirrors the live sandbox destination object:
+// name/type instead of label/destination_type, plus review state and the
+// bank-rail fields.
+const payoutDestinationExample = `{
+	"id": "pd_1a2b3c4d5e6f",
+	"name": "My GTBank Savings",
+	"type": "bank_account",
+	"currency": "NGN",
+	"status": "approved",
+	"status_reason": null,
+	"is_usable": true,
+	"is_default": false,
+	"account_number": "0123456789",
+	"account_name": null,
+	"bank_code": "058",
+	"bank_name": null,
+	"phone_number": null,
+	"mobile_provider": null,
+	"wallet_address": null,
+	"network": null,
+	"reviewed_at": null,
+	"created_at": "2026-01-24T14:30:00.000Z",
+	"updated_at": "2026-01-24T14:30:00.000Z"
+}`
+
 func TestListDestinations(t *testing.T) {
 	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -90,31 +116,7 @@ func TestListDestinations(t *testing.T) {
 		if r.URL.Path != "/v1/payouts/destinations" {
 			t.Errorf("path = %q", r.URL.Path)
 		}
-		io.WriteString(w, `{
-			"destinations": [
-				{
-					"id": "dest_1a2b3c4d5e6f",
-					"organization_id": "org_abc123",
-					"env": "live",
-					"destination_type": "bank_account",
-					"currency": "NGN",
-					"label": "My GTBank Savings",
-					"account_number": "0123456789",
-					"account_name": "JOHN DOE",
-					"bank_code": "058",
-					"bank_name": "Guaranty Trust Bank",
-					"phone_number": null,
-					"mobile_provider": null,
-					"wallet_address": null,
-					"network": null,
-					"is_active": true,
-					"metadata": null,
-					"created_at": "2026-01-24T14:30:00.000Z",
-					"updated_at": "2026-01-24T14:30:00.000Z"
-				}
-			],
-			"total": 1
-		}`)
+		io.WriteString(w, `{"destinations": [`+payoutDestinationExample+`], "total": 1}`)
 	})
 
 	list, _, err := c.Payouts.ListDestinations(context.Background())
@@ -125,8 +127,14 @@ func TestListDestinations(t *testing.T) {
 		t.Fatalf("list = %+v", list)
 	}
 	d := list.Destinations[0]
-	if d.ID != "dest_1a2b3c4d5e6f" || d.DestinationType != "bank_account" {
+	if d.ID != "pd_1a2b3c4d5e6f" || d.Type != "bank_account" {
 		t.Errorf("destination = %+v", d)
+	}
+	if d.Name != "My GTBank Savings" {
+		t.Errorf("Name = %q", d.Name)
+	}
+	if !d.IsUsable || d.Status != "approved" {
+		t.Errorf("IsUsable/Status = %v/%q", d.IsUsable, d.Status)
 	}
 	if d.BankCode == nil || *d.BankCode != "058" {
 		t.Errorf("BankCode = %v", d.BankCode)
@@ -138,31 +146,17 @@ func TestGetDestination(t *testing.T) {
 		if r.Method != http.MethodGet {
 			t.Errorf("method = %s, want GET", r.Method)
 		}
-		if r.URL.Path != "/v1/payouts/destinations/dest_1a2b3c4d5e6f" {
-			t.Errorf("path = %q, want /v1/payouts/destinations/dest_1a2b3c4d5e6f", r.URL.Path)
+		if r.URL.Path != "/v1/payouts/destinations/pd_1a2b3c4d5e6f" {
+			t.Errorf("path = %q, want /v1/payouts/destinations/pd_1a2b3c4d5e6f", r.URL.Path)
 		}
-		io.WriteString(w, `{
-			"id": "dest_1a2b3c4d5e6f",
-			"organization_id": "org_abc123",
-			"env": "live",
-			"destination_type": "bank_account",
-			"currency": "NGN",
-			"label": "My GTBank Savings",
-			"account_number": "0123456789",
-			"account_name": "JOHN DOE",
-			"bank_code": "058",
-			"bank_name": "Guaranty Trust Bank",
-			"is_active": true,
-			"created_at": "2026-01-24T14:30:00.000Z",
-			"updated_at": "2026-01-24T14:30:00.000Z"
-		}`)
+		io.WriteString(w, payoutDestinationExample)
 	})
 
-	d, _, err := c.Payouts.GetDestination(context.Background(), "dest_1a2b3c4d5e6f")
+	d, _, err := c.Payouts.GetDestination(context.Background(), "pd_1a2b3c4d5e6f")
 	if err != nil {
 		t.Fatalf("GetDestination returned error: %v", err)
 	}
-	if d.ID != "dest_1a2b3c4d5e6f" || d.DestinationType != "bank_account" {
+	if d.ID != "pd_1a2b3c4d5e6f" || d.Type != "bank_account" {
 		t.Errorf("destination = %+v", d)
 	}
 	if d.BankCode == nil || *d.BankCode != "058" {
@@ -178,78 +172,69 @@ func TestCreateDestination(t *testing.T) {
 		if r.URL.Path != "/v1/payouts/destinations" {
 			t.Errorf("path = %q", r.URL.Path)
 		}
-		io.WriteString(w, `{
-			"id": "dest_1a2b3c4d5e6f",
-			"organization_id": "org_abc123",
-			"env": "live",
-			"destination_type": "bank_account",
-			"currency": "NGN",
-			"label": "My GTBank Savings",
-			"account_number": "0123456789",
-			"account_name": "JOHN DOE",
-			"bank_code": "058",
-			"bank_name": "Guaranty Trust Bank",
-			"is_active": true,
-			"created_at": "2026-01-24T14:30:00.000Z",
-			"updated_at": "2026-01-24T14:30:00.000Z"
-		}`)
+		body, _ := io.ReadAll(r.Body)
+		var got map[string]any
+		if err := json.Unmarshal(body, &got); err != nil {
+			t.Fatalf("request body is not valid JSON: %v", err)
+		}
+		// Canonical keys go on the wire, even when set via the aliases.
+		if got["type"] != "bank_account" || got["name"] != "My GTBank Savings" {
+			t.Errorf("type/name = %v/%v, want bank_account/My GTBank Savings", got["type"], got["name"])
+		}
+		if _, present := got["destination_type"]; present {
+			t.Errorf("destination_type should not be sent alongside type: %s", body)
+		}
+		io.WriteString(w, payoutDestinationExample)
 	})
 
 	dest, _, err := c.Payouts.CreateDestination(context.Background(), CreatePayoutDestinationRequest{
 		DestinationType: "bank_account",
 		Currency:        "NGN",
+		Label:           "My GTBank Savings",
 		AccountNumber:   "0123456789",
-		AccountName:     "John Doe",
 		BankCode:        "058",
 	})
 	if err != nil {
 		t.Fatalf("CreateDestination returned error: %v", err)
 	}
-	if dest.ID != "dest_1a2b3c4d5e6f" || dest.Currency != "NGN" {
+	if dest.ID != "pd_1a2b3c4d5e6f" || dest.Currency != "NGN" {
 		t.Errorf("dest = %+v", dest)
 	}
-	if dest.AccountName == nil || *dest.AccountName != "JOHN DOE" {
-		t.Errorf("AccountName = %v", dest.AccountName)
+	if dest.Name != "My GTBank Savings" {
+		t.Errorf("Name = %q", dest.Name)
 	}
 }
 
 func TestUpdateDestination(t *testing.T) {
 	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPut {
-			t.Errorf("method = %s, want PUT", r.Method)
+		if r.Method != http.MethodPatch {
+			t.Errorf("method = %s, want PATCH (PUT is 405 live)", r.Method)
 		}
-		if r.URL.Path != "/v1/payouts/destinations/dest_1a2b3c4d5e6f" {
+		if r.URL.Path != "/v1/payouts/destinations/pd_1a2b3c4d5e6f" {
 			t.Errorf("path = %q", r.URL.Path)
 		}
-		io.WriteString(w, `{
-			"id": "dest_1a2b3c4d5e6f",
-			"organization_id": "org_abc123",
-			"env": "live",
-			"destination_type": "bank_account",
-			"currency": "NGN",
-			"label": "Treasury NGN Account",
-			"account_number": "0123456789",
-			"account_name": "JOHN DOE",
-			"bank_code": "058",
-			"bank_name": "Guaranty Trust Bank",
-			"is_active": true,
-			"created_at": "2026-01-24T14:30:00.000Z",
-			"updated_at": "2026-02-22T14:30:00.000Z"
-		}`)
+		body, _ := io.ReadAll(r.Body)
+		var got map[string]any
+		if err := json.Unmarshal(body, &got); err != nil {
+			t.Fatalf("request body is not valid JSON: %v", err)
+		}
+		if got["name"] != "Treasury NGN Account" {
+			t.Errorf("name = %v, want Treasury NGN Account", got["name"])
+		}
+		if len(got) != 1 {
+			t.Errorf("body = %s, want only the changed name", body)
+		}
+		io.WriteString(w, payoutDestinationExample)
 	})
 
-	dest, _, err := c.Payouts.UpdateDestination(context.Background(), "dest_1a2b3c4d5e6f", UpdatePayoutDestinationRequest{
-		DestinationType: "bank_account",
-		Currency:        "NGN",
-		AccountNumber:   "0123456789",
-		AccountName:     "JOHN DOE",
-		BankCode:        "058",
+	dest, _, err := c.Payouts.UpdateDestination(context.Background(), "pd_1a2b3c4d5e6f", UpdatePayoutDestinationRequest{
+		Name: stringPtr("Treasury NGN Account"),
 	})
 	if err != nil {
 		t.Fatalf("UpdateDestination returned error: %v", err)
 	}
-	if dest.Label != "Treasury NGN Account" {
-		t.Errorf("Label = %q", dest.Label)
+	if dest.ID != "pd_1a2b3c4d5e6f" {
+		t.Errorf("ID = %q", dest.ID)
 	}
 }
 
@@ -258,21 +243,19 @@ func TestDeleteDestination(t *testing.T) {
 		if r.Method != http.MethodDelete {
 			t.Errorf("method = %s, want DELETE", r.Method)
 		}
-		if r.URL.Path != "/v1/payouts/destinations/dest_1a2b3c4d5e6f" {
+		if r.URL.Path != "/v1/payouts/destinations/pd_1a2b3c4d5e6f" {
 			t.Errorf("path = %q", r.URL.Path)
 		}
-		io.WriteString(w, `{
-			"success": true,
-			"message": "Payout destination deleted"
-		}`)
+		// Live shape: {"id","deleted"}, not {"success","message"}.
+		io.WriteString(w, `{"id": "pd_1a2b3c4d5e6f", "deleted": true}`)
 	})
 
-	res, _, err := c.Payouts.DeleteDestination(context.Background(), "dest_1a2b3c4d5e6f")
+	res, _, err := c.Payouts.DeleteDestination(context.Background(), "pd_1a2b3c4d5e6f")
 	if err != nil {
 		t.Fatalf("DeleteDestination returned error: %v", err)
 	}
-	if !res.Success || res.Message != "Payout destination deleted" {
-		t.Errorf("res = %+v", res)
+	if res.ID != "pd_1a2b3c4d5e6f" || !res.Deleted {
+		t.Errorf("res = %+v, want Deleted=true", res)
 	}
 }
 
@@ -442,5 +425,57 @@ func TestCreateWithdrawal(t *testing.T) {
 	}
 	if res.ProviderReference != nil {
 		t.Errorf("ProviderReference = %v, want nil", *res.ProviderReference)
+	}
+}
+
+func TestMarshalCreateDestinationPrefersCanonical(t *testing.T) {
+	city := "Charlotte"
+	got := CreatePayoutDestinationRequest{
+		Type:            "bank_account",
+		DestinationType: "mobile_money",
+		Currency:        "USD",
+		Name:            "US operating account",
+		Label:           "ignored label",
+		Scheme:          "ach",
+		BankAddress:     &PayoutBankAddress{City: &city},
+		Metadata:        map[string]any{"k": "v"},
+	}.marshalCreateDestination()
+
+	if got["type"] != "bank_account" || got["name"] != "US operating account" {
+		t.Errorf("type/name = %v/%v, want canonical winners", got["type"], got["name"])
+	}
+	if _, present := got["destination_type"]; present {
+		t.Errorf("destination_type should not be sent: %v", got)
+	}
+	if _, present := got["label"]; present {
+		t.Errorf("label should not be sent: %v", got)
+	}
+	if got["scheme"] != "ach" {
+		t.Errorf("scheme = %v", got["scheme"])
+	}
+	addr, ok := got["bank_address"].(*PayoutBankAddress)
+	if !ok || addr.City == nil || *addr.City != "Charlotte" {
+		t.Errorf("bank_address = %v", got["bank_address"])
+	}
+	if got["metadata"].(map[string]any)["k"] != "v" {
+		t.Errorf("metadata = %v", got["metadata"])
+	}
+}
+
+func TestMarshalCreateDestinationFallsBackToAliases(t *testing.T) {
+	got := CreatePayoutDestinationRequest{
+		DestinationType: "bank_account",
+		Currency:        "NGN",
+		Label:           "My GTBank Savings",
+	}.marshalCreateDestination()
+
+	if got["type"] != "bank_account" || got["name"] != "My GTBank Savings" {
+		t.Errorf("type/name = %v/%v, want alias fallback", got["type"], got["name"])
+	}
+	if _, present := got["bank_address"]; present {
+		t.Errorf("bank_address should be absent when nil: %v", got)
+	}
+	if _, present := got["metadata"]; present {
+		t.Errorf("metadata should be absent when nil: %v", got)
 	}
 }

@@ -53,30 +53,43 @@ type PayoutQuote struct {
 }
 
 // PayoutDestination is a configured payout destination (bank account, mobile
-// money, or crypto wallet) your organization can withdraw to.
+// money, or crypto wallet) your organization can withdraw to. Only usable
+// destinations (IsUsable, reviewed Status) can receive payouts; check before
+// withdrawing. Source:
+// https://docs.bachs.io/guides/payouts/payout-using-api
 type PayoutDestination struct {
-	// ID of the destination.
+	// ID of the destination (for example "pd_...").
 	ID string `json:"id"`
 
-	// OrganizationID the destination belongs to.
-	OrganizationID string `json:"organization_id"`
+	// Name is the human-readable name the owner gave this destination.
+	// Called "label" in older requests; the response always uses name.
+	Name string `json:"name"`
 
-	// Env is "test" or "live".
-	Env string `json:"env"`
-
-	// DestinationType is "bank_account", "mobile_money", or "crypto_wallet".
-	DestinationType string `json:"destination_type"`
+	// Type is "bank_account", "mobile_money", or "crypto_wallet".
+	Type string `json:"type"`
 
 	// Currency the destination receives (for example "NGN").
 	Currency string `json:"currency"`
 
-	// Label is the human-readable name the owner gave this destination.
-	Label string `json:"label"`
+	// Status is the review state (for example "approved"). Proceed only
+	// when IsUsable is true.
+	Status string `json:"status"`
 
-	// AccountNumber for bank accounts, masked when sensitive.
+	// StatusReason explains a non-approved status. Null otherwise.
+	StatusReason *string `json:"status_reason"`
+
+	// IsUsable reports whether the destination can receive payouts now.
+	IsUsable bool `json:"is_usable"`
+
+	// IsDefault reports whether this is the currency's default destination
+	// for automatic payouts. Promote one with UpdateDestination.
+	IsDefault bool `json:"is_default"`
+
+	// AccountNumber for bank accounts.
 	AccountNumber *string `json:"account_number"`
 
-	// AccountName registered on the bank account.
+	// AccountName registered on the bank account. Null until the account
+	// resolves to a verified name.
 	AccountName *string `json:"account_name"`
 
 	// BankCode for bank accounts (for example "058").
@@ -84,6 +97,35 @@ type PayoutDestination struct {
 
 	// BankName for bank accounts.
 	BankName *string `json:"bank_name"`
+
+	// Scheme is the bank rail (for example "ach"). Required for USD and CAD
+	// banks.
+	Scheme *string `json:"scheme"`
+
+	// RoutingNumber for scheme-routed banks.
+	RoutingNumber *string `json:"routing_number"`
+
+	// SortCode for Faster Payments banks.
+	SortCode *string `json:"sort_code"`
+
+	// IBAN for SEPA banks.
+	IBAN *string `json:"iban"`
+
+	// SwiftBIC identifies the bank for SEPA. It does not select a SWIFT
+	// payout.
+	SwiftBIC *string `json:"swift_bic"`
+
+	// BankAddress describes the bank branch (not the owner's address).
+	BankAddress *PayoutBankAddress `json:"bank_address"`
+
+	// InstitutionNumber for Canadian banks.
+	InstitutionNumber *string `json:"institution_number"`
+
+	// TransitNumber for Canadian banks.
+	TransitNumber *string `json:"transit_number"`
+
+	// InteracEmail for Interac destinations.
+	InteracEmail *string `json:"interac_email"`
 
 	// PhoneNumber for mobile-money destinations.
 	PhoneNumber *string `json:"phone_number"`
@@ -97,17 +139,33 @@ type PayoutDestination struct {
 	// Network for crypto destinations (for example "TRC20").
 	Network *string `json:"network"`
 
-	// IsActive is true while the destination accepts payouts.
-	IsActive bool `json:"is_active"`
-
-	// Metadata is key-value data stored on the destination.
-	Metadata map[string]any `json:"metadata"`
+	// ReviewedAt is when the destination cleared review. Null while under
+	// review.
+	ReviewedAt *time.Time `json:"reviewed_at"`
 
 	// CreatedAt is when the destination was created.
 	CreatedAt time.Time `json:"created_at"`
 
 	// UpdatedAt is when the destination was last updated.
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// PayoutBankAddress describes a bank branch for scheme-routed destinations.
+type PayoutBankAddress struct {
+	// Line1 is the branch street address.
+	Line1 *string `json:"line1,omitempty"`
+
+	// City of the branch.
+	City *string `json:"city,omitempty"`
+
+	// State of the branch.
+	State *string `json:"state,omitempty"`
+
+	// PostalCode of the branch.
+	PostalCode *string `json:"postal_code,omitempty"`
+
+	// Country of the branch (two-letter code).
+	Country *string `json:"country,omitempty"`
 }
 
 // PayoutDestinationList is the response of Payouts.ListDestinations. The
@@ -122,17 +180,26 @@ type PayoutDestinationList struct {
 }
 
 // CreatePayoutDestinationRequest is the payload for
-// Payouts.CreateDestination and Payouts.UpdateDestination. Only the fields
-// relevant to the DestinationType are used; the rest are ignored.
+// Payouts.CreateDestination. Only the fields relevant to the destination
+// type are used; the rest are ignored. Store the returned destination ID
+// and reuse it for future payouts.
 type CreatePayoutDestinationRequest struct {
-	// DestinationType is "bank_account", "mobile_money", or "crypto_wallet".
-	DestinationType string `json:"destination_type"`
+	// Type is "bank_account", "mobile_money", or "crypto_wallet".
+	Type string `json:"type,omitempty"`
+
+	// DestinationType is a deprecated alias for Type, kept for backward
+	// compatibility. Type wins when both are set.
+	DestinationType string `json:"destination_type,omitempty"`
 
 	// Currency the destination receives (for example "NGN").
 	Currency string `json:"currency"`
 
-	// Label is a human-readable name for this destination.
-	Label string `json:"label"`
+	// Name is a human-readable name for this destination.
+	Name string `json:"name,omitempty"`
+
+	// Label is a deprecated alias for Name, kept for backward
+	// compatibility. Name wins when both are set.
+	Label string `json:"label,omitempty"`
 
 	// AccountNumber for bank accounts.
 	AccountNumber string `json:"account_number,omitempty"`
@@ -140,11 +207,18 @@ type CreatePayoutDestinationRequest struct {
 	// AccountName registered on the bank account.
 	AccountName string `json:"account_name,omitempty"`
 
-	// BankCode for bank accounts.
+	// BankCode for bank accounts (from Reference.ListBanks).
 	BankCode string `json:"bank_code,omitempty"`
 
 	// BankName for bank accounts.
 	BankName string `json:"bank_name,omitempty"`
+
+	// Scheme is the bank rail (for example "ach"). Required for USD and CAD
+	// banks.
+	Scheme string `json:"scheme,omitempty"`
+
+	// BankAddress describes the bank branch for scheme-routed banks.
+	BankAddress *PayoutBankAddress `json:"bank_address,omitempty"`
 
 	// PhoneNumber for mobile-money destinations.
 	PhoneNumber string `json:"phone_number,omitempty"`
@@ -162,17 +236,90 @@ type CreatePayoutDestinationRequest struct {
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
+// marshalCreateDestination renders the request with the canonical type/name
+// keys: Type wins over DestinationType, Name wins over Label (verified live:
+// canonical keys take precedence and aliases are tolerated).
+func (r CreatePayoutDestinationRequest) marshalCreateDestination() map[string]any {
+	out := map[string]any{}
+	put := func(key, value string) {
+		if value != "" {
+			out[key] = value
+		}
+	}
+	if r.Type != "" {
+		put("type", r.Type)
+	} else {
+		put("type", r.DestinationType)
+	}
+	put("currency", r.Currency)
+	if r.Name != "" {
+		put("name", r.Name)
+	} else {
+		put("name", r.Label)
+	}
+	put("account_number", r.AccountNumber)
+	put("account_name", r.AccountName)
+	put("bank_code", r.BankCode)
+	put("bank_name", r.BankName)
+	put("scheme", r.Scheme)
+	if r.BankAddress != nil {
+		out["bank_address"] = r.BankAddress
+	}
+	put("phone_number", r.PhoneNumber)
+	put("mobile_provider", r.MobileProvider)
+	put("wallet_address", r.WalletAddress)
+	put("network", r.Network)
+	if r.Metadata != nil {
+		out["metadata"] = r.Metadata
+	}
+	return out
+}
+
 // UpdatePayoutDestinationRequest is the payload for
-// Payouts.UpdateDestination. It has the same shape as the create request.
-type UpdatePayoutDestinationRequest = CreatePayoutDestinationRequest
+// Payouts.UpdateDestination: renaming a destination or making it the
+// default. Only the fields you send are changed; changing routing or holder
+// details puts the destination back under review. Sending no supported
+// field is rejected with BAD_REQUEST.
+type UpdatePayoutDestinationRequest struct {
+	// Name replaces the destination's name.
+	Name *string `json:"name,omitempty"`
+
+	// IsDefault promotes the destination to the default for its currency,
+	// used by automatic payouts.
+	IsDefault *bool `json:"is_default,omitempty"`
+
+	// AccountName replaces the registered holder name.
+	AccountName *string `json:"account_name,omitempty"`
+
+	// AccountNumber replaces the account number.
+	AccountNumber *string `json:"account_number,omitempty"`
+
+	// BankCode replaces the bank code.
+	BankCode *string `json:"bank_code,omitempty"`
+
+	// BankName replaces the bank name.
+	BankName *string `json:"bank_name,omitempty"`
+
+	// PhoneNumber replaces the mobile-money number.
+	PhoneNumber *string `json:"phone_number,omitempty"`
+
+	// MobileProvider replaces the mobile-money provider.
+	MobileProvider *string `json:"mobile_provider,omitempty"`
+
+	// WalletAddress replaces the crypto wallet.
+	WalletAddress *string `json:"wallet_address,omitempty"`
+
+	// Network replaces the crypto network.
+	Network *string `json:"network,omitempty"`
+}
 
 // DeletePayoutDestinationResponse is the result of Payouts.DeleteDestination.
 type DeletePayoutDestinationResponse struct {
-	// Success is true when the destination was deleted.
-	Success bool `json:"success"`
+	// ID of the destination that was deleted.
+	ID string `json:"id"`
 
-	// Message explains the result.
-	Message string `json:"message"`
+	// Deleted is true when the destination was deleted.
+	Deleted bool `json:"deleted"`
 }
 
 // BankAccountResolution is the resolved name on a bank account, returned by
@@ -453,20 +600,25 @@ func (s *PayoutService) GetDestination(ctx context.Context, destinationID string
 }
 
 // CreateDestination adds a payout destination (bank account, mobile money, or
-// crypto wallet) where you can withdraw funds.
+// crypto wallet) where you can withdraw funds. Check IsUsable before paying
+// into it: creating a destination does not always make it usable
+// immediately.
 func (s *PayoutService) CreateDestination(ctx context.Context, req CreatePayoutDestinationRequest, opts ...RequestOption) (*PayoutDestination, *ResponseMeta, error) {
 	var out PayoutDestination
-	meta, err := s.request(ctx, http.MethodPost, "/payouts/destinations", req, &out, opts...)
+	meta, err := s.request(ctx, http.MethodPost, "/payouts/destinations", req.marshalCreateDestination(), &out, opts...)
 	if err != nil {
 		return nil, meta, err
 	}
 	return &out, meta, nil
 }
 
-// UpdateDestination updates an existing payout destination.
+// UpdateDestination renames a destination, promotes it to the default for
+// its currency, or changes its details (which puts it back under review).
+// Only the fields you send are changed; sending no supported field is
+// rejected. Withdrawals already in flight are unaffected.
 func (s *PayoutService) UpdateDestination(ctx context.Context, destinationID string, req UpdatePayoutDestinationRequest) (*PayoutDestination, *ResponseMeta, error) {
 	var out PayoutDestination
-	meta, err := s.request(ctx, http.MethodPut, "/payouts/destinations/"+url.PathEscape(destinationID), req, &out)
+	meta, err := s.request(ctx, http.MethodPatch, "/payouts/destinations/"+url.PathEscape(destinationID), req, &out)
 	if err != nil {
 		return nil, meta, err
 	}

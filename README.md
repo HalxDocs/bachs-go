@@ -107,6 +107,27 @@ swap the key and opt in explicitly:
 client, err := bachs.NewClient("sk_live_...", bachs.WithProduction())
 ```
 
+### Upgrading
+
+v1.4.0–v1.6.0 replace SDK shapes that never worked against the live API
+(dead paths, ignored fields, undecodable responses). If you are coming
+from v1.3.0 or earlier:
+
+- **v1.6.0** — `PayoutDestination` follows the live object (`name` /
+  `type`, review `status`, `is_usable` / `is_default`); `UpdateDestination`
+  takes a PATCH struct (`UpdatePayoutDestinationRequest` with `name`,
+  `is_default`, detail fields); `DeleteDestination` returns
+  `{ID, Deleted}`; creates use `Type` / `Name` (`destination_type` /
+  `label` still work as aliases).
+- **v1.5.0** — the 11 `ConnectedAccounts` requirement-task helpers are
+  gone (they 404'd on every call). Submit onboarding values with
+  `ConnectedAccounts.UpdateAccount`, lookups with `Reference`, uploads
+  with `Media`, ID attach with `Persons.AttachDocument`.
+- **v1.4.0** — `Webhooks.ListEndpoints` takes `ListParams` and returns
+  `*Page[WebhookEndpoint]`; Connect create/update requests carry
+  persona-nested `configuration`; `AllowedPaymentMethodTypes` is removed
+  (it was silently ignored — use `PaymentMethodTypes`).
+
 ## API conventions
 
 Every method takes a `context.Context` as its first argument and returns

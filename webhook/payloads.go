@@ -229,6 +229,43 @@ type SubscriptionEventCadence struct {
 	Frequency int `json:"frequency"`
 }
 
+// RefundEventData is the typed payload of the refund.* events (created,
+// paid, failed), which share one shape and differ only in status. Use the
+// paid event to mark your record refunded, and track the created event to
+// completion. Source:
+// https://docs.bachs.io/guides/webhooks/events/refund-paid
+type RefundEventData struct {
+	// RefundID is the refund's ID.
+	RefundID string `json:"refund_id"`
+
+	// ChargeID is the charge being refunded.
+	ChargeID string `json:"charge_id"`
+
+	// Reference is the reference set when the refund was requested.
+	// Required at creation, so always present.
+	Reference string `json:"reference"`
+
+	// Status is the refund status: "processing", "paid", or "failed".
+	Status string `json:"status"`
+
+	// RequestedAmount is the amount requested to refund, as a decimal
+	// string.
+	RequestedAmount string `json:"requested_amount"`
+
+	// RefundedAmount is the amount actually refunded so far. Null until
+	// anything has been refunded.
+	RefundedAmount *string `json:"refunded_amount"`
+
+	// RefundFeeAmount is the fee charged on the refund, if any.
+	RefundFeeAmount string `json:"refund_fee_amount"`
+
+	// FeeBearer is who absorbs the refund fee: "customer" or "merchant".
+	FeeBearer string `json:"fee_bearer"`
+
+	// Reason is the reason for the refund, when provided.
+	Reason *string `json:"reason"`
+}
+
 // CustomerSubscriptionData is the typed payload of the
 // customer.subscription.* events (created, updated, deleted): the
 // subscription and the customer behind it. Use it to provision, adjust, or

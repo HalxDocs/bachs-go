@@ -4,6 +4,14 @@ All notable changes to this project are documented in this file. The format
 is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Typed refund webhook payload: `RefundEventData` in the `webhook`
+  package covers the `refund.created`, `refund.paid`, and `refund.failed`
+  events, which share one shape.
+
 ## [v1.6.0] - 2026-10-10
 
 ### Fixed

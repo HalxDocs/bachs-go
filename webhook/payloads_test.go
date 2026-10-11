@@ -172,3 +172,52 @@ func TestCustomerSubscriptionData(t *testing.T) {
 		t.Errorf("TrialEnd/CanceledAt = %v/%v, want nil", data.TrialEnd, data.CanceledAt)
 	}
 }
+
+// TestRefundEventData decodes the documented refund.paid payload from
+// https://docs.bachs.io/guides/webhooks/events/refund-paid. The created
+// and failed events share the shape and differ only in status.
+func TestRefundEventData(t *testing.T) {
+	var event Event
+	if err := json.Unmarshal([]byte(`{
+		"id": "evt_1a2b3c4d5e6f7g8h",
+		"type": "refund.paid",
+		"created_at": "2026-04-27T12:00:00.000000+00:00",
+		"organization_id": "acct_7KpQ2mNv4XbR9dLc",
+		"data": {
+			"refund_id": "ref_1a2b3c4d5e",
+			"charge_id": "ch_1a2b3c4d5e6f",
+			"reference": "refund_9876",
+			"status": "paid",
+			"requested_amount": "10.00",
+			"refunded_amount": "10.00",
+			"refund_fee_amount": "0.00",
+			"fee_bearer": "merchant",
+			"reason": "Customer request"
+		}
+	}`), &event); err != nil {
+		t.Fatalf("unmarshal event: %v", err)
+	}
+
+	var data RefundEventData
+	if err := event.DataAs(&data); err != nil {
+		t.Fatalf("DataAs: %v", err)
+	}
+	if data.RefundID != "ref_1a2b3c4d5e" || data.ChargeID != "ch_1a2b3c4d5e6f" {
+		t.Errorf("IDs = %s/%s", data.RefundID, data.ChargeID)
+	}
+	if data.Reference != "refund_9876" || data.Status != "paid" {
+		t.Errorf("Reference/Status = %s/%s", data.Reference, data.Status)
+	}
+	if data.RequestedAmount != "10.00" {
+		t.Errorf("RequestedAmount = %s", data.RequestedAmount)
+	}
+	if data.RefundedAmount == nil || *data.RefundedAmount != "10.00" {
+		t.Errorf("RefundedAmount = %v", data.RefundedAmount)
+	}
+	if data.FeeBearer != "merchant" {
+		t.Errorf("FeeBearer = %s", data.FeeBearer)
+	}
+	if data.Reason == nil || *data.Reason != "Customer request" {
+		t.Errorf("Reason = %v", data.Reason)
+	}
+}
